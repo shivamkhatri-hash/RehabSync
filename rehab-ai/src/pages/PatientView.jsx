@@ -29,6 +29,7 @@ export default function PatientView() {
   const [mode, setMode] = useState('dashboard'); // 'dashboard' or 'scanner'
   const [gameMode, setGameMode] = useState('zen'); // 'standard', 'zen', 'flappy', 'runner'
   const [isMuted, setIsMuted] = useState(false);
+  const [selectedArm, setSelectedArm] = useState('left'); // 'left' or 'right'
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -185,9 +186,25 @@ export default function PatientView() {
         let isResetZone = false;
         let detectedLandmarks = null;
 
+        // Resolve target joints dynamically based on chosen side selection
+        let resolvedJoints = currentExercise.target_joints;
+        if (selectedArm === 'right') {
+          if (currentExercise.name === 'Bicep Curl' || currentExercise.name === 'Push-up') {
+            resolvedJoints = [12, 14, 16];
+          } else if (currentExercise.name === 'Crunch') {
+            resolvedJoints = [12, 24, 26];
+          }
+        } else {
+          if (currentExercise.name === 'Bicep Curl' || currentExercise.name === 'Push-up') {
+            resolvedJoints = [11, 13, 15];
+          } else if (currentExercise.name === 'Crunch') {
+            resolvedJoints = [11, 23, 25];
+          }
+        }
+
         if (results.landmarks && results.landmarks.length > 0) {
           detectedLandmarks = results.landmarks[0];
-          const [j1, j2, j3] = currentExercise.target_joints;
+          const [j1, j2, j3] = resolvedJoints;
           const pt1 = detectedLandmarks[j1];
           const pt2 = detectedLandmarks[j2];
           const pt3 = detectedLandmarks[j3];
@@ -264,7 +281,7 @@ export default function PatientView() {
           // Mode 1: Mirror feed with overlaid bones skeleton
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           if (detectedLandmarks) {
-            const [j1, j2, j3] = currentExercise.target_joints;
+            const [j1, j2, j3] = resolvedJoints;
             // Draw visual skeletal highlights
             drawBone(ctx, detectedLandmarks, j1, j2, canvas.width, canvas.height, isHolding);
             drawBone(ctx, detectedLandmarks, j2, j3, canvas.width, canvas.height, isHolding);
@@ -731,6 +748,34 @@ export default function PatientView() {
                   <p className="text-sm text-slate-400">Loading prescription logs...</p>
                 )}
               </div>
+
+              {/* Active Side / Arm Selector */}
+              <div className="border-t border-slate-100 pt-4 mt-4">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Target Arm / Side</label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setSelectedArm('left')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${
+                      selectedArm === 'left' 
+                        ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-600/10' 
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    👈 Left Side
+                  </button>
+                  <button 
+                    onClick={() => setSelectedArm('right')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${
+                      selectedArm === 'right' 
+                        ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-600/10' 
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    👉 Right Side
+                  </button>
+                </div>
+              </div>
+
             </div>
 
             {/* Game Mode Picker */}
