@@ -2,25 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePoseLandmarker } from '../hooks/usePoseLandmarker';
 import { API_URL } from '../config';
+import * as standardTracker from '../games/standardTracker';
+import * as zenBloom from '../games/zenBloom';
+import * as flappyRehab from '../games/flappyRehab';
+import * as rehabRunner from '../games/rehabRunner';
 
 const calculateAngle = (a, b, c) => {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
   let angle = Math.abs((radians * 180.0) / Math.PI);
   if (angle > 180.0) angle = 360 - angle;
   return angle;
-};
-
-const drawBone = (ctx, landmarks, indexA, indexB, width, height, isWrongPosture) => {
-  const ptA = landmarks[indexA];
-  const ptB = landmarks[indexB];
-  if (!ptA || !ptB) return;
-  
-  ctx.beginPath();
-  ctx.moveTo(ptA.x * width, ptA.y * height);
-  ctx.lineTo(ptB.x * width, ptB.y * height);
-  ctx.strokeStyle = isWrongPosture ? '#f43f5e' : '#0d9488'; // Red for bad, Teal for good
-  ctx.lineWidth = 6;
-  ctx.stroke();
 };
 
 export default function PatientView() {
@@ -149,19 +140,14 @@ export default function PatientView() {
 
     startCamera();
 
-    // Reset loop game values
-    gameStateRef.current.bloomPercentage = 0;
-    gameStateRef.current.flowers = [];
-    gameStateRef.current.plantHeight = 30;
-    gameStateRef.current.flappyScore = 0;
-    gameStateRef.current.flappyY = 240;
-    gameStateRef.current.gates = [];
-    gameStateRef.current.runnerScore = 0;
-    gameStateRef.current.runnerY = 0;
-    gameStateRef.current.runnerJumpVelocity = 0;
-    gameStateRef.current.obstacles = [];
-    gameStateRef.current.runnerCoins = [];
-    gameStateRef.current.frameIndex = 0;
+    // Reset loop game values dynamically based on selected game mode
+    if (gameMode === 'zen') {
+      gameStateRef.current = { ...gameStateRef.current, ...zenBloom.init() };
+    } else if (gameMode === 'flappy') {
+      gameStateRef.current = { ...gameStateRef.current, ...flappyRehab.init() };
+    } else if (gameMode === 'runner') {
+      gameStateRef.current = { ...gameStateRef.current, ...rehabRunner.init() };
+    }
     
     repsRef.current = 0;
     setReps(0);
@@ -278,366 +264,38 @@ export default function PatientView() {
 
         // --- GRAPHICS LAYER RENDERING ---
         if (gameMode === 'standard') {
-          // Mode 1: Mirror feed with overlaid bones skeleton
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          if (detectedLandmarks) {
-            const [j1, j2, j3] = resolvedJoints;
-            // Draw visual skeletal highlights
-            drawBone(ctx, detectedLandmarks, j1, j2, canvas.width, canvas.height, isHolding);
-            drawBone(ctx, detectedLandmarks, j2, j3, canvas.width, canvas.height, isHolding);
-          }
+          standardTracker.draw(ctx, canvas, {
+            video,
+            detectedLandmarks,
+            resolvedJoints,
+            isHolding
+          });
         } 
         
         else if (gameMode === 'zen') {
-          // Mode 2: The Zen Bloom Garden
-          const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-          grad.addColorStop(0, '#0f172a');
-          grad.addColorStop(1, '#1e293b');
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          // Render camera box in corner for reference
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(480, 20, 140, 105);
-          ctx.clip();
-          ctx.drawImage(video, 480, 20, 140, 105);
-          ctx.restore();
-          ctx.strokeStyle = '#334155';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(480, 20, 140, 105);
-
-          // Grass mound
-          ctx.fillStyle = '#0f766e';
-          ctx.beginPath();
-          ctx.ellipse(canvas.width / 2, canvas.height + 40, canvas.width * 0.6, 90, 0, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Draw procedural stem
-          ctx.beginPath();
-          ctx.moveTo(canvas.width / 2, canvas.height - 15);
-          ctx.quadraticCurveTo(canvas.width / 2 - 30, canvas.height - 100, canvas.width / 2, canvas.height - gameStateRef.current.plantHeight);
-          ctx.strokeStyle = '#0d9488';
-          ctx.lineWidth = 10;
-          ctx.stroke();
-
-          // Render leaves
-          const leafY = canvas.height - (gameStateRef.current.plantHeight / 1.8);
-          ctx.fillStyle = '#115e59';
-          ctx.beginPath();
-          ctx.ellipse(canvas.width / 2 - 20, leafY, 24, 10, -Math.PI / 6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.ellipse(canvas.width / 2 + 20, leafY - 15, 24, 10, Math.PI / 6, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Bud/Flower head indicator
-          const budRad = 16 + (gameStateRef.current.bloomPercentage / 100) * 12;
-          ctx.fillStyle = '#ec4899';
-          ctx.beginPath();
-          ctx.arc(canvas.width / 2, canvas.height - gameStateRef.current.plantHeight, budRad, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Renders bloomed garden
-          gameStateRef.current.flowers.forEach((f) => {
-            if (f.scale < 1.0) f.scale += 0.04;
-            ctx.save();
-            ctx.translate(f.x, f.y);
-            ctx.scale(f.scale, f.scale);
-            
-            ctx.fillStyle = f.color;
-            for (let i = 0; i < 5; i++) {
-              const ang = (i * 2 * Math.PI) / 5;
-              ctx.beginPath();
-              ctx.arc(Math.cos(ang) * 16, Math.sin(ang) * 16, 14, 0, Math.PI * 2);
-              ctx.fill();
-            }
-            ctx.fillStyle = '#eab308';
-            ctx.beginPath();
-            ctx.arc(0, 0, 10, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
+          zenBloom.draw(ctx, canvas, gameStateRef.current, {
+            video,
+            isHolding
           });
-
-          // Text overlay indicators
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = 'bold 12px sans-serif';
-          ctx.fillText("ZEN GARDEN STRETCH MODE", 30, 40);
         } 
         
         else if (gameMode === 'flappy') {
-          // Mode 3: Flappy Bird
-          const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-          bgGrad.addColorStop(0, '#020617');
-          bgGrad.addColorStop(1, '#0b1329');
-          ctx.fillStyle = bgGrad;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          // Grid backdrop
-          ctx.strokeStyle = '#1e293b';
-          ctx.lineWidth = 1;
-          const scroll = (gameStateRef.current.frameIndex * 2) % 40;
-          for (let x = -scroll; x < canvas.width; x += 40) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, canvas.height);
-            ctx.stroke();
-          }
-
-          // Mini Web Camera overlay
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(20, 20, 100, 75);
-          ctx.clip();
-          ctx.drawImage(video, 20, 20, 100, 75);
-          ctx.restore();
-          ctx.strokeStyle = '#334155';
-          ctx.strokeRect(20, 20, 100, 75);
-
-          // Frame counting
-          gameStateRef.current.frameIndex += 1;
-          if (gameStateRef.current.frameIndex % 150 === 0) {
-            const gap = 160;
-            const topH = 80 + Math.random() * (canvas.height - 300);
-            gameStateRef.current.gates.push({
-              x: canvas.width,
-              topHeight: topH,
-              bottomHeight: topH + gap,
-              passed: false,
-              hit: false
-            });
-          }
-
-          // Convert angle flexion value to ship Y height
-          const minAngle = currentExercise.failure_angle;
-          const maxAngle = currentExercise.success_angle;
-          const range = maxAngle - minAngle;
-          const ratio = Math.max(0, Math.min(1, (liveAngleVal - minAngle) / (range || 1)));
-          const targetY = canvas.height - 60 - ratio * (canvas.height - 120);
-          gameStateRef.current.flappyY += (targetY - gameStateRef.current.flappyY) * 0.12;
-
-          // Render flyer avatar
-          const px = 170;
-          const py = gameStateRef.current.flappyY;
-
-          ctx.fillStyle = '#06b6d4';
-          ctx.beginPath();
-          ctx.arc(px, py, 14, 0, Math.PI * 2);
-          ctx.fill();
-          // Thrust flame
-          ctx.fillStyle = '#f43f5e';
-          ctx.beginPath();
-          ctx.moveTo(px - 14, py);
-          ctx.lineTo(px - 26, py - 6);
-          ctx.lineTo(px - 26, py + 6);
-          ctx.closePath();
-          ctx.fill();
-
-          // Obstacles Gate processing
-          gameStateRef.current.gates.forEach((gate) => {
-            gate.x -= 3;
-            
-            // Top obstruction pillar
-            ctx.fillStyle = gate.hit ? '#f43f5e' : '#0d9488';
-            ctx.fillRect(gate.x, 0, 50, gate.topHeight);
-            ctx.fillStyle = gate.hit ? '#fda4af' : '#14b8a6';
-            ctx.fillRect(gate.x - 4, gate.topHeight - 15, 58, 15);
-
-            // Bottom obstruction pillar
-            ctx.fillStyle = gate.hit ? '#f43f5e' : '#0d9488';
-            ctx.fillRect(gate.x, gate.bottomHeight, 50, canvas.height - gate.bottomHeight);
-            ctx.fillStyle = gate.hit ? '#fda4af' : '#14b8a6';
-            ctx.fillRect(gate.x - 4, gate.bottomHeight, 58, 15);
-
-            // Collision parameters checks
-            if (gate.x < px + 14 && gate.x + 50 > px - 14) {
-              if (py - 14 < gate.topHeight || py + 14 > gate.bottomHeight) {
-                if (!gate.hit) {
-                  gate.hit = true;
-                  speakText("Watch alignment!");
-                }
-              }
-            }
-
-            // Gate clean pass checking
-            if (!gate.passed && gate.x + 50 < px) {
-              gate.passed = true;
-              if (!gate.hit) {
-                gameStateRef.current.flappyScore += 1;
-                repsRef.current += 1;
-                setReps(repsRef.current);
-                speakText("Good pass!");
-              }
-            }
+          flappyRehab.draw(ctx, canvas, gameStateRef.current, {
+            video,
+            liveAngleVal,
+            currentExercise,
+            speakText,
+            repsRef,
+            setReps
           });
-
-          // Filter out of bounds gates
-          gameStateRef.current.gates = gameStateRef.current.gates.filter(g => g.x > -80);
-
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 15px sans-serif';
-          ctx.fillText(`Gates Passed: ${gameStateRef.current.flappyScore}`, 140, 45);
         }
         
         else if (gameMode === 'runner') {
-          // Mode 4: Isometric 3D-ish Runner
-          ctx.fillStyle = '#090d16';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          const horizonY = canvas.height * 0.45;
-          ctx.strokeStyle = '#1e293b';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(0, horizonY);
-          ctx.lineTo(canvas.width, horizonY);
-          ctx.stroke();
-
-          // Draw lanes perspective grid lines
-          const cx = canvas.width / 2;
-          ctx.strokeStyle = '#334155';
-          [-1.5, -0.5, 0.5, 1.5].forEach((offset) => {
-            ctx.beginPath();
-            ctx.moveTo(cx + offset * 30, horizonY);
-            ctx.lineTo(cx + offset * 240, canvas.height);
-            ctx.stroke();
+          rehabRunner.draw(ctx, canvas, gameStateRef.current, {
+            video,
+            detectedLandmarks,
+            speakText
           });
-
-          // Mini Camera Box in corner
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(20, 20, 100, 75);
-          ctx.clip();
-          ctx.drawImage(video, 20, 20, 100, 75);
-          ctx.restore();
-          ctx.strokeStyle = '#475569';
-          ctx.strokeRect(20, 20, 100, 75);
-
-          // Lean offset coordinates detector
-          if (detectedLandmarks) {
-            const leftShoulder = detectedLandmarks[11];
-            const rightShoulder = detectedLandmarks[12];
-            const leftHip = detectedLandmarks[23];
-            const rightHip = detectedLandmarks[24];
-
-            if (leftShoulder && rightShoulder && leftHip && rightHip) {
-              const midS = (leftShoulder.x + rightShoulder.x) / 2;
-              const midH = (leftHip.x + rightHip.x) / 2;
-              const offset = midS - midH; // screen offset
-              
-              // camera mirrored -> leaning left moves right
-              let lane = 1; // 0 left, 1 center, 2 right
-              if (offset > 0.045) lane = 0;
-              else if (offset < -0.045) lane = 2;
-              gameStateRef.current.runnerLane = lane;
-            }
-          }
-
-          // Jump physics update
-          if (gameStateRef.current.runnerY > 0 || gameStateRef.current.runnerJumpVelocity !== 0) {
-            gameStateRef.current.runnerY += gameStateRef.current.runnerJumpVelocity;
-            gameStateRef.current.runnerJumpVelocity -= 0.6; // gravity speed
-            if (gameStateRef.current.runnerY <= 0) {
-              gameStateRef.current.runnerY = 0;
-              gameStateRef.current.runnerJumpVelocity = 0;
-            }
-          }
-
-          // Obstacles & coins spawning
-          gameStateRef.current.frameIndex += 1;
-          if (gameStateRef.current.frameIndex % 110 === 0) {
-            const laneOption = Math.floor(Math.random() * 3);
-            const isCoin = Math.random() > 0.5;
-            if (isCoin) {
-              gameStateRef.current.runnerCoins.push({ lane: laneOption, z: 0.1, passed: false });
-            } else {
-              const fullHurdle = Math.random() < 0.35;
-              gameStateRef.current.obstacles.push({
-                lane: laneOption,
-                z: 0.1,
-                isFullHurdle: fullHurdle,
-                passed: false,
-                hit: false
-              });
-            }
-          }
-
-          // Render player runner avatar (glowing circle)
-          const laneX = [cx - 130, cx, cx + 130];
-          const px = laneX[gameStateRef.current.runnerLane];
-          const py = canvas.height - 65 - gameStateRef.current.runnerY;
-
-          ctx.fillStyle = '#ec4899';
-          ctx.beginPath();
-          ctx.arc(px, py, 16, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Obstacles render & collision loop
-          gameStateRef.current.obstacles.forEach((obs) => {
-            obs.z += 0.015;
-            const zs = obs.z;
-            const ox = cx + (obs.lane - 1) * 130 * zs;
-            const oy = horizonY + (canvas.height - horizonY - 60) * zs;
-            const size = 12 + zs * 38;
-
-            if (obs.isFullHurdle) {
-              ctx.fillStyle = obs.hit ? '#f43f5e' : '#b91c1c';
-              ctx.fillRect(cx - 150 * zs, oy - size / 2, 300 * zs, size / 3);
-            } else {
-              ctx.fillStyle = obs.hit ? '#f43f5e' : '#dc2626';
-              ctx.fillRect(ox - size / 2, oy - size / 2, size, size);
-            }
-
-            // Checks bounds collision at player position depth
-            if (zs >= 0.85 && zs <= 0.95 && !obs.hit) {
-              if (obs.isFullHurdle) {
-                if (gameStateRef.current.runnerY < 18) {
-                  obs.hit = true;
-                  speakText("Jump!");
-                }
-              } else {
-                if (gameStateRef.current.runnerLane === obs.lane && gameStateRef.current.runnerY < 10) {
-                  obs.hit = true;
-                  speakText("Dodge!");
-                }
-              }
-            }
-
-            if (zs >= 1.0 && !obs.passed) {
-              obs.passed = true;
-              if (!obs.hit) {
-                gameStateRef.current.runnerScore += 10;
-              }
-            }
-          });
-
-          // Coins render & collection loop
-          gameStateRef.current.runnerCoins.forEach((coin) => {
-            coin.z += 0.015;
-            const zs = coin.z;
-            const kx = cx + (coin.lane - 1) * 130 * zs;
-            const ky = horizonY + (canvas.height - horizonY - 60) * zs;
-            const kSize = 5 + zs * 15;
-
-            ctx.fillStyle = '#eab308';
-            ctx.beginPath();
-            ctx.arc(kx, ky, kSize, 0, Math.PI * 2);
-            ctx.fill();
-
-            if (zs >= 0.85 && zs <= 0.95 && !coin.passed) {
-              if (gameStateRef.current.runnerLane === coin.lane && gameStateRef.current.runnerY < 18) {
-                coin.passed = true;
-                gameStateRef.current.runnerScore += 25;
-                speakText("Nice catch!");
-              }
-            }
-          });
-
-          gameStateRef.current.obstacles = gameStateRef.current.obstacles.filter(o => o.z < 1.1);
-          gameStateRef.current.runnerCoins = gameStateRef.current.runnerCoins.filter(c => c.z < 1.1);
-
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 15px sans-serif';
-          ctx.fillText(`Run Score: ${gameStateRef.current.runnerScore}`, 140, 45);
         }
       }
       animationFrameId = requestAnimationFrame(renderLoop);
