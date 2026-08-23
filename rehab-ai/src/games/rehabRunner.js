@@ -9,7 +9,10 @@ export const init = () => ({
 });
 
 export const draw = (ctx, canvas, state, params) => {
-  const { video, detectedLandmarks, speakText } = params;
+  const { video, detectedLandmarks, speakText, currentExercise } = params;
+
+  // Gentle, slow depth scroll speed suitable for patient movements
+  const scrollZ = 0.0065;
 
   ctx.fillStyle = '#090d16';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -32,7 +35,7 @@ export const draw = (ctx, canvas, state, params) => {
     ctx.stroke();
   });
 
-  // Mini Camera Box in corner
+  // Mini Camera Box in corner (disabled if video is null)
   if (video) {
     ctx.save();
     ctx.beginPath();
@@ -44,23 +47,70 @@ export const draw = (ctx, canvas, state, params) => {
     ctx.strokeRect(20, 20, 100, 75);
   }
 
-  // Lean offset coordinates detector
+  // Lean offset/exercise coordinates detector
   if (detectedLandmarks) {
-    const leftShoulder = detectedLandmarks[11];
-    const rightShoulder = detectedLandmarks[12];
-    const leftHip = detectedLandmarks[23];
-    const rightHip = detectedLandmarks[24];
-
-    if (leftShoulder && rightShoulder && leftHip && rightHip) {
-      const midS = (leftShoulder.x + rightShoulder.x) / 2;
-      const midH = (leftHip.x + rightHip.x) / 2;
-      const offset = midS - midH; // screen offset
+    const name = currentExercise?.name?.toLowerCase() || '';
+    
+    if (name.includes("hip abduction")) {
+      // Standing Hip Abduction: lift left leg laterally to move left, lift right leg to move right
+      const leftHip = detectedLandmarks[23];
+      const leftAnkle = detectedLandmarks[27];
+      const rightHip = detectedLandmarks[24];
+      const rightAnkle = detectedLandmarks[28];
       
-      // camera mirrored -> leaning left moves right
-      let lane = 1; // 0 left, 1 center, 2 right
-      if (offset > 0.045) lane = 0;
-      else if (offset < -0.045) lane = 2;
-      state.runnerLane = lane;
+      if (leftHip && leftAnkle && rightHip && rightAnkle) {
+        // Measure horizontal displacement from hip to ankle
+        const leftDisp = Math.abs(leftAnkle.x - leftHip.x);
+        const rightDisp = Math.abs(rightAnkle.x - rightHip.x);
+        
+        let lane = 1;
+        // Since camera is mirrored, lift right side ankle (lower x) to go right
+        if (leftDisp > 0.09) {
+          lane = 0; // Left lane
+        } else if (rightDisp > 0.09) {
+          lane = 2; // Right lane
+        }
+        state.runnerLane = lane;
+      }
+    } 
+    else if (name.includes("march") || name.includes("marching")) {
+      // Marching in place: lift left knee to move left, right knee to move right
+      const leftHip = detectedLandmarks[23];
+      const leftKnee = detectedLandmarks[25];
+      const rightHip = detectedLandmarks[24];
+      const rightKnee = detectedLandmarks[26];
+      
+      if (leftHip && leftKnee && rightHip && rightKnee) {
+        // Higher knee has lower y coordinate relative to hip
+        const leftLift = leftHip.y - leftKnee.y;
+        const rightLift = rightHip.y - rightKnee.y;
+        
+        let lane = 1;
+        if (leftLift > 0.12) {
+          lane = 0;
+        } else if (rightLift > 0.12) {
+          lane = 2;
+        }
+        state.runnerLane = lane;
+      }
+    } 
+    else {
+      // General balance/leaning shift fallback
+      const leftShoulder = detectedLandmarks[11];
+      const rightShoulder = detectedLandmarks[12];
+      const leftHip = detectedLandmarks[23];
+      const rightHip = detectedLandmarks[24];
+
+      if (leftShoulder && rightShoulder && leftHip && rightHip) {
+        const midS = (leftShoulder.x + rightShoulder.x) / 2;
+        const midH = (leftHip.x + rightHip.x) / 2;
+        const offset = midS - midH; // screen offset
+        
+        let lane = 1; // 0 left, 1 center, 2 right
+        if (offset > 0.045) lane = 0;
+        else if (offset < -0.045) lane = 2;
+        state.runnerLane = lane;
+      }
     }
   }
 
@@ -76,6 +126,7 @@ export const draw = (ctx, canvas, state, params) => {
 
   // Spawn barriers & coins
   state.frameIndex += 1;
+  
   if (state.frameIndex % 110 === 0) {
     const laneOption = Math.floor(Math.random() * 3);
     const isCoin = Math.random() > 0.5;
@@ -105,7 +156,7 @@ export const draw = (ctx, canvas, state, params) => {
 
   // Obstacles render & collision loop
   state.obstacles.forEach((obs) => {
-    obs.z += 0.015;
+    obs.z += scrollZ;
     const zs = obs.z;
     const ox = cx + (obs.lane - 1) * 130 * zs;
     const oy = horizonY + (canvas.height - horizonY - 60) * zs;
@@ -144,7 +195,7 @@ export const draw = (ctx, canvas, state, params) => {
 
   // Coins render & collection loop
   state.runnerCoins.forEach((coin) => {
-    coin.z += 0.015;
+    coin.z += scrollZ;
     const zs = coin.z;
     const kx = cx + (coin.lane - 1) * 130 * zs;
     const ky = horizonY + (canvas.height - horizonY - 60) * zs;

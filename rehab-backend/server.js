@@ -27,13 +27,14 @@ mongoose.connect(process.env.MONGO_URI)
 
 // 2. Define Database Blueprints (Schemas & Models)
 
-// User Schema with OTP Support
+// User Schema with OTP & Password Support
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   role: { type: String, enum: ['doctor', 'patient'], required: true },
   assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   focusArea: { type: String, default: 'general' },
+  password: { type: String, default: null }, // Added password field
   otp: { type: String, default: null },
   otpExpires: { type: Date, default: null }
 });
@@ -76,16 +77,71 @@ const sessionSchema = new mongoose.Schema({
 });
 const SessionLog = mongoose.model('SessionLog', sessionSchema);
 
-// Auto-seed exercises
+// Auto-seed exercises and test users
 const seedDatabase = async () => {
-  const count = await Exercise.countDocuments();
-  if (count === 0) {
-    await Exercise.insertMany([
-      { name: 'Bicep Curl', target_joints: [11, 13, 15], success_angle: 160, failure_angle: 90 },
-      { name: 'Push-up', target_joints: [11, 13, 15], success_angle: 160, failure_angle: 80 },
-      { name: 'Crunch', target_joints: [11, 23, 25], success_angle: 110, failure_angle: 60 }
-    ]);
-    console.log('🌱 Database seeded with exercises!');
+  const exercises = [
+    { name: 'Bicep Curl', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
+    { name: 'Push-up', target_joints: [11, 13, 15], success_angle: 105, failure_angle: 155 },
+    { name: 'Crunch', target_joints: [11, 23, 25], success_angle: 80, failure_angle: 115 },
+    { name: 'Seated Knee Extension', target_joints: [23, 25, 27], success_angle: 160, failure_angle: 105 },
+    { name: 'Straight Leg Raise', target_joints: [11, 23, 25], success_angle: 115, failure_angle: 165 },
+    { name: 'Mini Squat', target_joints: [23, 25, 27, 24, 26, 28, 11, 12], success_angle: 125, failure_angle: 165 },
+    { name: 'Sit-to-Stand', target_joints: [11, 12, 23, 24, 25, 26, 27, 28], success_angle: 160, failure_angle: 105 },
+    { name: 'Standing Knee Flexion', target_joints: [23, 25, 27], success_angle: 100, failure_angle: 165 },
+    { name: 'Standing Hip Abduction', target_joints: [23, 25, 27], success_angle: 0.28, failure_angle: 0.05 },
+    { name: 'Standing Hip Flexion', target_joints: [11, 23, 25], success_angle: 115, failure_angle: 165 },
+    { name: 'Shoulder Flexion', target_joints: [23, 11, 13], success_angle: 105, failure_angle: 20 },
+    { name: 'Shoulder Abduction', target_joints: [23, 11, 13], success_angle: 95, failure_angle: 20 },
+    { name: 'Wall Slides', target_joints: [23, 24, 11, 12, 13, 14, 15, 16], success_angle: 100, failure_angle: 25 },
+    { name: 'Calf Raise', target_joints: [25, 27, 29, 31], success_angle: 0.07, failure_angle: 0.025 },
+    { name: 'Marching in Place', target_joints: [11, 12, 23, 24, 25, 26, 27, 28], success_angle: 120, failure_angle: 160 },
+    { name: 'Single-Leg Balance', target_joints: [11, 12, 23, 24, 25, 26, 27, 28], success_angle: 0.10, failure_angle: 0.02 },
+    { name: 'Bird Dog', target_joints: [11, 12, 15, 16, 23, 24, 27, 28], success_angle: 0.80, failure_angle: 0.45 },
+    { name: 'Squat', target_joints: [23, 25, 27], success_angle: 100, failure_angle: 165 },
+    { name: 'Lunge', target_joints: [23, 25, 27], success_angle: 105, failure_angle: 160 }
+  ];
+
+  for (const ex of exercises) {
+    const existing = await Exercise.findOne({ name: ex.name });
+    if (!existing) {
+      await Exercise.create(ex);
+      console.log(`🌱 Seeded exercise: ${ex.name}`);
+    } else {
+      // Overwrite/update existing defaults to correct angles
+      existing.target_joints = ex.target_joints;
+      existing.success_angle = ex.success_angle;
+      existing.failure_angle = ex.failure_angle;
+      await existing.save();
+    }
+  }
+
+  // Seed test Doctor
+  let testDoctor = await User.findOne({ email: 'doctor@test.com' });
+  if (!testDoctor) {
+    testDoctor = new User({
+      name: 'Dr. John Smith',
+      email: 'doctor@test.com',
+      role: 'doctor',
+      password: 'password123',
+      focusArea: 'general'
+    });
+    await testDoctor.save();
+    console.log('🌱 Test doctor seeded: doctor@test.com / password123');
+  }
+
+  // Seed test Patient
+  let testPatient = await User.findOne({ email: 'patient@test.com' });
+  if (!testPatient) {
+    testPatient = new User({
+      name: 'Jane Doe',
+      email: 'patient@test.com',
+      role: 'patient',
+      password: 'password123',
+      focusArea: 'upper_body',
+      assignedDoctorId: testDoctor._id
+    });
+    await testPatient.save();
+    console.log('🌱 Test patient seeded: patient@test.com / password123');
   }
 };
 mongoose.connection.once('open', seedDatabase);
@@ -97,84 +153,59 @@ app.get('/', (req, res) => res.send('API running!'));
 
 // --- AUTHENTICATION ROUTES ---
 
-// Step 1: Register New User & Send Initial OTP
+// Step 1: Register New User & Password (OTP commented out)
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, role, focusArea } = req.body;
+    const { name, email, role, focusArea, password } = req.body;
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ message: 'User already registered' });
 
-    // Generate a 6-digit code
+    // Commented out OTP generation for password system
+    /*
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    */
 
-    // Save the new user with the OTP
+    // Save the new user with the password
     user = new User({ 
       name, 
       email, 
       role, 
       focusArea,
+      password // Storing simple plain-text password for prototype
+      /*
       otp: generatedOtp,
       otpExpires: new Date(Date.now() + 5 * 60 * 1000)
+      */
     });
     await user.save();
 
-    // Send the Real Email
+    // Commented out Email transporter OTP dispatch
+    /*
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
       subject: 'Welcome to RehabSync - Verify Your Email',
       html: `<h3>Hello ${name},</h3><p>Your verification code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
     });
+    */
 
-    res.status(201).json({ message: 'Account created! Please check your email for the OTP.' });
+    res.status(201).json({ message: 'Account created! Please log in with your credentials.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Step 2: Login - Request OTP
-app.post('/api/auth/send-otp', async (req, res) => {
+// Step 2: Login - Password authentication (OTP logic commented out below)
+app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'No account found with this email' });
 
-    // Generate a 6-digit code
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Save to user with a 5-minute expiry
-    user.otp = generatedOtp;
-    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-    await user.save();
-
-    // Send the Real Email
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'RehabSync - Login Code',
-      html: `<p>Your secure login code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
-    });
-
-    res.json({ message: 'OTP sent to your email!' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Step 3: Verify OTP
-app.post('/api/auth/verify-otp', async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    const user = await User.findOne({ email });
-
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    if (!user.otp || user.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
-    if (new Date() > user.otpExpires) return res.status(400).json({ message: 'OTP has expired' });
-
-    // Clear OTP after successful use
-    user.otp = null;
-    user.otpExpires = null;
-    await user.save();
+    // Verify password (allow backward compatibility if user has no password yet)
+    if (user.password && user.password !== password) {
+      return res.status(400).json({ message: 'Invalid password' });
+    }
 
     // Generate session token
     const token = jwt.sign(
@@ -191,6 +222,62 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+/*
+// Step 2: Login - Request OTP (Commented out)
+app.post('/api/auth/send-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'No account found with this email' });
+
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = generatedOtp;
+    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+    await user.save();
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'RehabSync - Login Code',
+      html: `<p>Your secure login code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
+    });
+
+    res.json({ message: 'OTP sent to your email!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Step 3: Verify OTP (Commented out)
+app.post('/api/auth/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user.otp || user.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
+    if (new Date() > user.otpExpires) return res.status(400).json({ message: 'OTP has expired' });
+
+    user.otp = null;
+    user.otpExpires = null;
+    await user.save();
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET || 'hackathon_secret',
+      { expiresIn: '1d' }
+    );
+
+    res.json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, focusArea: user.focusArea }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+*/
 
 // --- DOCTOR DASHBOARD ROUTES ---
 
@@ -220,6 +307,16 @@ app.put('/api/users/patients/:patientId/assign', async (req, res) => {
 });
 
 // --- EXERCISE & SESSION ROUTES ---
+
+// Fetch all seeded exercises
+app.get('/api/exercises', async (req, res) => {
+  try {
+    const exercises = await Exercise.find({});
+    res.json(exercises);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/exercises/:name', async (req, res) => {
   try {

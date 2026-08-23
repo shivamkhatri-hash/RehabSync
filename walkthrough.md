@@ -29,19 +29,25 @@ We have successfully implemented the full suite of games, voice feedback guidanc
 - **SVG Analytics Component**: Renders line graphs plotting repetitions completed and peak angles chronologically over historical sessions.
 - **Enhanced Sessions Log**: Detail table showing session dates, exercise names, game modes, hold durations, and success scores.
 
+### 4. OTP-to-Password System Transition
+- **Mongoose User Schema (`rehab-backend/server.js`)**: Added the optional `password` attribute, allowing password-based logins while maintaining backward-compatibility for older users without passwords.
+- **REST Auth Endpoints (`rehab-backend/server.js`)**:
+  - Modified `/api/auth/register` to store plain-text passwords during registration.
+  - Commented out OTP code generation, expiry checks, and nodemailer SMTP transporter operations.
+  - Implemented `/api/auth/login` to support direct password comparisons.
+  - Placed JavaScript comment boundaries (`/* ... */`) around `/api/auth/send-otp` and `/api/auth/verify-otp` endpoints to block them without deletion.
+- **UI Form updates (`rehab-ai/src/pages/Auth.jsx`)**:
+  - Switched view layouts from email-debounced OTP steps to a singular Email & Password login screen.
+  - Added password inputs to both Sign In and Sign Up views.
+  - Commented out original OTP client-side request handlers and verification functions.
+
 ---
 
 ## Verification Results
 
 ### 1. Frontend Client Build Compilation
 - Executed `npm run build` within `rehab-ai`.
-- Vite compiled all modules successfully in **2.63 seconds** with no errors:
-  ```bash
-  dist/index.html                   0.45 kB
-  dist/assets/index-DgVhDUAX.css   20.55 kB
-  dist/assets/index-qHR2sys0.js   430.09 kB
-  ✓ built in 2.63s
-  ```
+- Vite compiled all modules successfully in **1.94 seconds** with no errors.
 
 ### 2. Backend Server Syntax Check
 - Executed `node --check server.js` within `rehab-backend`.
