@@ -5,7 +5,6 @@ import { API_URL, CV_API_URL } from '../config';
 import * as standardTracker from '../games/standardTracker';
 import * as zenBloom from '../games/zenBloom';
 import * as flappyRehab from '../games/flappyRehab';
-import * as rehabRunner from '../games/rehabRunner';
 import * as mannequinTracker from '../games/mannequinTracker';
 import * as shadowMatch from '../games/shadowMatch';
 
@@ -319,13 +318,48 @@ const getRecommendedGameMode = (exercise) => {
   if (exercise.holdTime > 0 || name.includes('balance') || name.includes('bird dog') || name.includes('hold') || name.includes('stretch')) {
     return 'zen'; // Zen Garden procedural plant growing for holds
   }
-  if (name.includes('squat') || name.includes('stand') || name.includes('calf') || name.includes('abduction') || name.includes('march') || name.includes('jump')) {
-    return 'runner'; // Runner jumps for standing/bilateral/squat exercises
-  }
   if (name.includes('curl') || name.includes('flexion') || name.includes('extension') || name.includes('raise') || name.includes('push') || name.includes('slide')) {
     return 'flappy'; // Flappy flight for unilateral flexion/extensions
   }
   return 'standard';
+};
+
+const getStreak = (sessionLogs) => {
+  if (!sessionLogs || sessionLogs.length === 0) return 0;
+  
+  // Extract unique dates as YYYY-MM-DD
+  const dates = Array.from(new Set(sessionLogs.map(s => {
+    try {
+      return new Date(s.date).toISOString().split('T')[0];
+    } catch (e) {
+      return null;
+    }
+  }))).filter(Boolean).sort().reverse(); // sort descending (latest first)
+  
+  if (dates.length === 0) return 0;
+
+  let streak = 0;
+  let todayStr = new Date().toISOString().split('T')[0];
+  let yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // If latest session is not from today or yesterday, streak is broken (0)
+  if (dates[0] !== todayStr && dates[0] !== yesterdayStr) {
+    return 0;
+  }
+
+  let expectedDate = new Date(dates[0]);
+  for (let i = 0; i < dates.length; i++) {
+    const dateStr = dates[i];
+    const expectedStr = expectedDate.toISOString().split('T')[0];
+    
+    if (dateStr === expectedStr) {
+      streak++;
+      expectedDate.setDate(expectedDate.getDate() - 1); // step backward
+    } else {
+      break;
+    }
+  }
+  return streak;
 };
 
 export default function PatientView() {
@@ -505,8 +539,6 @@ export default function PatientView() {
       gameStateRef.current = { ...gameStateRef.current, ...zenBloom.init() };
     } else if (gameMode === 'flappy') {
       gameStateRef.current = { ...gameStateRef.current, ...flappyRehab.init() };
-    } else if (gameMode === 'runner') {
-      gameStateRef.current = { ...gameStateRef.current, ...rehabRunner.init() };
     } else if (gameMode === 'mannequin') {
       gameStateRef.current = { ...gameStateRef.current, ...mannequinTracker.init() };
     } else if (gameMode === 'shadow') {
@@ -733,17 +765,6 @@ export default function PatientView() {
             });
           }
           
-          else if (gameMode === 'runner') {
-            rehabRunner.draw(ctxGame, gameCanvas, gameStateRef.current, {
-              video: null, // Disable mini camera inside game view to prevent duplication
-              detectedLandmarks,
-              speakText,
-              currentExercise,
-              selectedArm,
-              liveAngleVal
-            });
-          }
-
           else if (gameMode === 'mannequin') {
             mannequinTracker.draw(ctxGame, gameCanvas, gameStateRef.current, {
               detectedLandmarks,
@@ -858,8 +879,7 @@ export default function PatientView() {
       const modeNames = {
         standard: 'Standard Tracker',
         zen: 'Zen Bloom Garden',
-        flappy: 'Flappy Rehab Flight',
-        runner: 'Rehab Runner Dash'
+        flappy: 'Flappy Rehab Flight'
       };
 
       const totalF = totalFramesRef.current;
@@ -923,7 +943,9 @@ export default function PatientView() {
     // Avg form accuracy
     const avgSuccessRate = totalSessions > 0
       ? Math.round(sessions.reduce((acc, curr) => acc + (curr.success_rate || 100), 0) / totalSessions)
-      : 100;
+      : 0;
+
+    const currentStreak = getStreak(sessions);
 
     // Badges array
     const achievements = [
@@ -1040,7 +1062,7 @@ export default function PatientView() {
                   <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-2xl">🔥</div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Daily Streak</span>
-                    <span className="text-xl font-black text-slate-800">5 Days Active</span>
+                    <span className="text-xl font-black text-slate-800">{currentStreak} {currentStreak === 1 ? 'Day' : 'Days'} Active</span>
                   </div>
                 </div>
                 
@@ -1058,7 +1080,7 @@ export default function PatientView() {
                   <div className="w-12 h-12 rounded-2xl bg-pink-50 border border-pink-100 flex items-center justify-center text-2xl">🎯</div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Avg Accuracy</span>
-                    <span className="text-xl font-black text-slate-800">{avgSuccessRate}% Form</span>
+                    <span className="text-xl font-black text-slate-800">{totalSessions > 0 ? `${avgSuccessRate}%` : 'N/A'} Form</span>
                   </div>
                 </div>
               </div>
@@ -1068,28 +1090,28 @@ export default function PatientView() {
                 <div className="md:col-span-1 space-y-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                   <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3">Active Prescription</h3>
                   
-                  {prescribedExercises.length > 0 ? (
+                  {doctorPrescribed.length > 0 ? (
                     <div className="space-y-4">
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Prescribed Stretch</span>
-                        <span className="font-extrabold text-slate-800 text-base">{prescribedExercises[0].name}</span>
+                        <span className="font-extrabold text-slate-800 text-base">{doctorPrescribed[0].name}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="text-slate-400 block font-bold text-[9px] uppercase">Goal Target</span>
-                          <span className="font-extrabold text-slate-800">{prescribedExercises[0].targetReps} Reps</span>
+                          <span className="font-extrabold text-slate-800">{doctorPrescribed[0].targetReps} Reps</span>
                         </div>
                         <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                           <span className="text-slate-400 block font-bold text-[9px] uppercase">Hold Time</span>
-                          <span className="font-extrabold text-slate-800">{prescribedExercises[0].holdTime || 0}s</span>
+                          <span className="font-extrabold text-slate-800">{doctorPrescribed[0].holdTime || 0}s</span>
                         </div>
                       </div>
                       <button 
                         onClick={() => {
-                          setCurrentExercise(prescribedExercises[0]);
+                          setCurrentExercise(doctorPrescribed[0]);
                           setReps(0);
                           repsRef.current = 0;
-                          setGameMode(getRecommendedGameMode(prescribedExercises[0]));
+                          setGameMode(getRecommendedGameMode(doctorPrescribed[0]));
                           setActiveTab('workout');
                         }}
                         className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-1 shadow-md shadow-teal-600/10"
@@ -1098,7 +1120,11 @@ export default function PatientView() {
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-400">No active prescription found. Enjoy open practice in Workout Hub!</p>
+                    <div className="bg-slate-50 border border-slate-150 p-6 rounded-2xl text-center space-y-3">
+                      <span className="text-2xl block">📋</span>
+                      <h4 className="font-bold text-slate-700 text-xs">No Active Prescription</h4>
+                      <p className="text-[10px] text-slate-450 leading-relaxed">Your therapist has not assigned any active workout routines yet. You can still practice any exercise in the Workout Hub!</p>
+                    </div>
                   )}
                 </div>
 
@@ -1315,21 +1341,6 @@ export default function PatientView() {
                      <span className="text-3xl">🚀</span>
                      <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Flappy Flight</h3>
                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Classic gates flyer. Altitude maps directly to joint angle, encouraging range extensions.</p>
-                   </div>
-   
-                   {/* Mode Option 3: Rehab Runner */}
-                   <div 
-                     onClick={() => setGameMode('runner')}
-                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
-                       gameMode === 'runner' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
-                     }`}
-                   >
-                     {currentExercise && getRecommendedGameMode(currentExercise) === 'runner' && (
-                       <span className="absolute top-4 right-4 bg-teal-50 text-teal-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-teal-200 shadow-sm animate-pulse">Recommended</span>
-                     )}
-                     <span className="text-3xl">🏃‍♂️</span>
-                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Rehab Runner Dash</h3>
-                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Dodge obstacles by leaning shoulders laterally. Complete full reps to jump fences.</p>
                    </div>
    
                    {/* Mode Option 4: Standard Tracker */}

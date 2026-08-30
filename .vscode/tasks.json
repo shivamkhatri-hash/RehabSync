@@ -1,0 +1,56 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Backend Server",
+      "type": "shell",
+      "command": "node server.js",
+      "options": {
+        "cwd": "${workspaceFolder}/rehab-backend"
+      },
+      "presentation": {
+        "group": "posecare-ecosystem",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Start CV Service",
+      "type": "shell",
+      "command": "python app.py",
+      "options": {
+        "cwd": "${workspaceFolder}/cv-service"
+      },
+      "presentation": {
+        "group": "posecare-ecosystem",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Start React Frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/rehab-ai"
+      },
+      "presentation": {
+        "group": "posecare-ecosystem",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Start PoseCare Ecosystem",
+      "dependsOn": [
+        "Start Backend Server",
+        "Start CV Service",
+        "Start React Frontend"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

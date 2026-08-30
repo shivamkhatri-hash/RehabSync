@@ -358,19 +358,43 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Step 2: Login - Password authentication (OTP logic commented out below)
+// Step 2: Login - Password authentication with OTP for patients
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'No account found with this email' });
 
-    // Verify password (allow backward compatibility if user has no password yet)
+    // Verify password
     if (user.password && user.password !== password) {
       return res.status(400).json({ message: 'Invalid password' });
     }
 
-    // Generate session token
+    if (user.role === 'patient') {
+      // Patients require OTP verification!
+      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.otp = generatedOtp;
+      user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+      await user.save();
+
+      // Send email (gracefully caught to prevent blocking login on config gaps)
+      try {
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: email,
+          subject: 'PoseCare - Login Code',
+          html: `<p>Your secure login code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
+        });
+        console.log(`📨 Sent OTP ${generatedOtp} to ${email}`);
+      } catch (mailErr) {
+        console.warn(`⚠️ Nodemailer failed to send email. Displaying OTP in console:`);
+        console.log(`🔑 [OTP for ${email}]: ${generatedOtp}`);
+      }
+
+      return res.json({ requiresOtp: true, email: user.email });
+    }
+
+    // Doctors bypass OTP and log in directly
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET || 'hackathon_secret',
@@ -386,33 +410,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-/*
-// Step 2: Login - Request OTP (Commented out)
-app.post('/api/auth/send-otp', async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'No account found with this email' });
-
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otp = generatedOtp;
-    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-    await user.save();
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'PoseCare - Login Code',
-      html: `<p>Your secure login code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
-    });
-
-    res.json({ message: 'OTP sent to your email!' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Step 3: Verify OTP (Commented out)
+// Step 3: Verify OTP
 app.post('/api/auth/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -440,7 +438,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-*/
+
 
 // --- DOCTOR DASHBOARD ROUTES ---
 
