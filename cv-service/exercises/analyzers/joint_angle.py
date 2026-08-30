@@ -11,12 +11,15 @@ class JointAngleAnalyzer(BaseAnalyzer):
 
 class ElbowFlexionAnalyzer(JointAngleAnalyzer):
     def form_check(self, landmarks, side, landmark_set, metric):
+        hip_idx = 23 if side == "left" else 24
+        hip = landmarks[hip_idx]
         shoulder, elbow, _ = (landmarks[index] for index in landmark_set[:3])
-        elbow_drift = abs(elbow.x - shoulder.x)
-        ok = elbow_drift <= 0.22
-        constraints = [f"elbow_drift={elbow_drift:.3f}"]
-        feedback = self.config.good_feedback if ok else "Keep your elbow closer to your side."
-        return ok, feedback, constraints
+        
+        shoulder_angle = calculate_angle(hip, shoulder, elbow)
+        
+        ok = 70.0 <= shoulder_angle <= 110.0
+        feedback = self.config.good_feedback if ok else "Keep your upper arm horizontal."
+        return ok, feedback, [f"shoulder_abduction={shoulder_angle:.1f}"]
 
 
 class KneeExtensionAnalyzer(JointAngleAnalyzer):
@@ -54,3 +57,17 @@ class PushUpAnalyzer(JointAngleAnalyzer):
         ok = body_angle >= 150
         feedback = self.config.good_feedback if ok else "Keep shoulder, hip, and ankle aligned."
         return ok, feedback, [f"body_alignment={body_angle:.1f}"]
+
+
+class BicepCurlShoulderAnalyzer(JointAngleAnalyzer):
+    def form_check(self, landmarks, side, landmark_set, metric):
+        wrist_idx = 15 if side == "left" else 16
+        shoulder, elbow, _ = (landmarks[index] for index in landmark_set[:3])
+        wrist = landmarks[wrist_idx]
+        
+        elbow_angle = calculate_angle(shoulder, elbow, wrist)
+        
+        ok = abs(elbow_angle - 90.0) <= 15.0
+        feedback = self.config.good_feedback if ok else "Keep your elbow at 90 degrees."
+        return ok, feedback, [f"elbow_angle={elbow_angle:.1f}"]
+

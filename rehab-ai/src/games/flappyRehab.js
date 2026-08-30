@@ -1,6 +1,11 @@
 export const init = () => ({
   flappyY: 240,
   flappyScore: 0,
+  gamePoints: 0,
+  comboCount: 0,
+  multiplier: 1,
+  scrollSpeed: 0.8,
+  currentGap: 180,
   gates: [],
   frameIndex: 0,
   consecutivePasses: 0,
@@ -10,8 +15,12 @@ export const init = () => ({
 export const draw = (ctx, canvas, state, params) => {
   const { video, liveAngleVal, currentExercise, speakText, repsRef, setReps } = params;
 
-  // Gentle, slow scroll speed suitable for patient joint range of motion exercises
-  const scrollSpeed = 1.2;
+  // Set default dynamic parameters if not initialized
+  if (state.scrollSpeed === undefined) state.scrollSpeed = 0.8;
+  if (state.currentGap === undefined) state.currentGap = 180;
+  if (state.gamePoints === undefined) state.gamePoints = 0;
+  if (state.comboCount === undefined) state.comboCount = 0;
+  if (state.multiplier === undefined) state.multiplier = 1;
 
   const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
   bgGrad.addColorStop(0, '#020617');
@@ -45,8 +54,8 @@ export const draw = (ctx, canvas, state, params) => {
   // Frame counting
   state.frameIndex += 1;
 
-  if (state.frameIndex % 150 === 0) {
-    const gap = 140; // Challenge mode: slightly narrower gap
+  if (state.frameIndex % 220 === 0) {
+    const gap = state.currentGap;
     let topH = 0;
     let type = 'middle';
 
@@ -61,9 +70,9 @@ export const draw = (ctx, canvas, state, params) => {
       type = nextType;
 
       if (nextType === 'top') {
-        topH = 50; // Gap is at the top (low Y) -> requires high flight / flexion success
+        topH = 0; // Gap is at the very top (no top block)
       } else {
-        topH = canvas.height - gap - 50; // Gap is at the bottom (high Y) -> requires low flight / extension rest
+        topH = canvas.height - gap; // Gap is at the very bottom (no bottom block)
       }
     }
 
@@ -83,7 +92,7 @@ export const draw = (ctx, canvas, state, params) => {
   const range = maxAngle - minAngle;
   const ratio = Math.max(0, Math.min(1, (liveAngleVal - minAngle) / (range || 1)));
   const targetY = canvas.height - 60 - ratio * (canvas.height - 120);
-  state.flappyY += (targetY - state.flappyY) * 0.12;
+  state.flappyY += (targetY - state.flappyY) * 0.03;
 
   // Render flyer avatar
   const px = 170;
@@ -105,7 +114,7 @@ export const draw = (ctx, canvas, state, params) => {
 
   // Obstacles Gate processing
   state.gates.forEach((gate) => {
-    gate.x -= scrollSpeed;
+    gate.x -= state.scrollSpeed;
     
     // Top obstruction pillar
     ctx.fillStyle = gate.hit ? '#f43f5e' : '#0d9488';
@@ -126,6 +135,11 @@ export const draw = (ctx, canvas, state, params) => {
           gate.hit = true;
           speakText("Watch alignment!");
           state.consecutivePasses = 0; // Reset ROM progress on collision
+          state.comboCount = 0;
+          state.multiplier = 1;
+          // Adaptive difficulty: ease up (slower speed, wider gap)
+          state.scrollSpeed = Math.max(0.6, state.scrollSpeed - 0.15);
+          state.currentGap = Math.min(210, state.currentGap + 10);
         }
       }
     }
@@ -134,12 +148,32 @@ export const draw = (ctx, canvas, state, params) => {
     if (!gate.passed && gate.x + 50 < px) {
       gate.passed = true;
       if (!gate.hit) {
+        // Increment combo
+        state.comboCount = (state.comboCount || 0) + 1;
+        // Update multiplier
+        if (state.comboCount >= 9) {
+          state.multiplier = 4;
+        } else if (state.comboCount >= 6) {
+          state.multiplier = 3;
+        } else if (state.comboCount >= 3) {
+          state.multiplier = 2;
+        } else {
+          state.multiplier = 1;
+        }
+
+        // Increase gamified points
+        state.gamePoints = (state.gamePoints || 0) + 10 * state.multiplier;
+
+        // Adaptive difficulty: challenge the user (faster speed, narrower gap)
+        state.scrollSpeed = Math.min(1.4, state.scrollSpeed + 0.05);
+        state.currentGap = Math.max(140, state.currentGap - 3);
+
         if (currentExercise.holdTime > 0) {
           // Hold mode: 1 gate = 1 hold/rep point
           state.flappyScore += 1;
           repsRef.current += 1;
           setReps(repsRef.current);
-          speakText("Good hold!");
+          speakText(state.multiplier > 1 ? `Combo ${state.multiplier}x!` : "Good hold!");
         } else {
           // Rep mode: Alternating clean passes: requires passing 2 gates (flexion + extension) for 1 rep
           state.consecutivePasses = (state.consecutivePasses || 0) + 1;
@@ -148,13 +182,15 @@ export const draw = (ctx, canvas, state, params) => {
             repsRef.current += 1;
             setReps(repsRef.current);
             state.consecutivePasses = 0;
-            speakText("Good repetition!");
+            speakText(state.multiplier > 1 ? `Combo ${state.multiplier}x!` : "Good repetition!");
           } else {
-            speakText("Keep going!");
+            speakText(state.multiplier > 1 ? "Combo!" : "Keep going!");
           }
         }
       } else {
         state.consecutivePasses = 0;
+        state.comboCount = 0;
+        state.multiplier = 1;
       }
     }
   });
@@ -162,12 +198,50 @@ export const draw = (ctx, canvas, state, params) => {
   // Filter out of bounds gates
   state.gates = state.gates.filter(g => g.x > -80);
 
-  // HUD and biofeedback hints
+  // HUD Background
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+  ctx.fillRect(0, 0, canvas.width, 60);
+  ctx.strokeStyle = 'rgba(6, 182, 212, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 60);
+  ctx.lineTo(canvas.width, 60);
+  ctx.stroke();
+
+  // Draw Reps count and Points
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'left';
   if (currentExercise.holdTime > 0) {
-    ctx.fillText(`Holds Completed: ${state.flappyScore}`, 140, 45);
+    ctx.fillText(`🎯 TARGET HOLDS: ${state.flappyScore}`, 140, 26);
   } else {
-    ctx.fillText(`Reps Completed: ${state.flappyScore} (Gates: ${state.consecutivePasses || 0}/2)`, 140, 45);
+    ctx.fillText(`🎯 REPS COMPLETED: ${state.flappyScore} (${state.consecutivePasses || 0}/2)`, 140, 26);
   }
+
+  ctx.fillStyle = '#f59e0b'; // Amber points
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText(`✨ SCORE POINTS: ${state.gamePoints || 0}`, 140, 44);
+
+  // Draw Combo and Multiplier
+  if (state.comboCount > 0) {
+    ctx.fillStyle = '#ec4899'; // Pink combo
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`🔥 COMBO: ${state.comboCount}`, 320, 26);
+
+    ctx.fillStyle = '#10b981'; // Green multiplier
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`⭐ MULTIPLIER: ${state.multiplier}x`, 320, 44);
+  } else {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`🔥 COMBO: 0`, 320, 26);
+    ctx.fillText(`⭐ MULTIPLIER: 1x`, 320, 44);
+  }
+
+  // Draw Adaptive Difficulty Stats (speed and gap)
+  ctx.fillStyle = '#06b6d4'; // Cyan stats
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(`⚡ SPEED: ${state.scrollSpeed.toFixed(2)}`, canvas.width - 20, 26);
+  ctx.fillText(`📐 GATE GAP: ${state.currentGap}px`, canvas.width - 20, 44);
 };

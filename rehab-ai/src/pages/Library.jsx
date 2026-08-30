@@ -23,6 +23,123 @@ const FALLBACK_EXERCISES = [
   { name: 'Lunge', target_joints: [23, 25, 27], success_angle: 105, failure_angle: 160 }
 ];
 
+const EXERCISE_REFS = {
+  'Bicep Curl': {
+    joints: 'Elbow Joint',
+    desc: 'Elbow flexion training targeting the biceps brachii.',
+    guidance: 'Keep your upper arm horizontal at shoulder height. Bend elbow to 90 degrees.',
+    tip: 'Face the camera and avoid dropping your upper arm below shoulder level.'
+  },
+  'Push-up': {
+    joints: 'Elbow & Shoulder',
+    desc: 'Upper body pushing movement targeting chest and triceps.',
+    guidance: 'Keep your torso straight and lower your chest until elbows bend to 90°.',
+    tip: 'Maintain a tight core and prevent your hips from sagging.'
+  },
+  'Crunch': {
+    joints: 'Thoracic / Core',
+    desc: 'Abdominal contraction targeting rectus abdominis.',
+    guidance: 'Lie on your back, knees bent, and raise your upper trunk towards your knees.',
+    tip: 'Do not pull your neck with your hands. Focus on core contractions.'
+  },
+  'Seated Knee Extension': {
+    joints: 'Knee Joint',
+    desc: 'Quadriceps strength training for active knee extension.',
+    guidance: 'Sit upright and slowly straighten your knee completely to full extension.',
+    tip: 'Use a side view showing your hip, knee, and ankle clearly.'
+  },
+  'Straight Leg Raise': {
+    joints: 'Hip & Knee',
+    desc: 'Hip flexor and quadriceps rehab with straight leg elevation.',
+    guidance: 'Lie flat, keep the target leg fully straight, and raise it 45 degrees.',
+    tip: 'Ensure the knee does not bend during the lift.'
+  },
+  'Mini Squat': {
+    joints: 'Knee & Hip',
+    desc: 'Functional partial squat training targeting quads and glutes.',
+    guidance: 'Lower your hips slightly as if sitting down, keeping knees behind toes.',
+    tip: 'Align the camera to capture a side profile of your lower body.'
+  },
+  'Sit-to-Stand': {
+    joints: 'Full Lower Body',
+    desc: 'Functional mobility training transferring from seated to standing.',
+    guidance: 'Stand up fully from a chair and sit back down slowly with control.',
+    tip: 'Do not use your arms to push off if you are building pure leg strength.'
+  },
+  'Standing Knee Flexion': {
+    joints: 'Knee / Hamstring',
+    desc: 'Knee flexion stretching targeting the hamstring muscle group.',
+    guidance: 'Stand tall and bend your knee backwards, bringing your heel towards your glutes.',
+    tip: 'Keep your thighs parallel to each other during the flexion.'
+  },
+  'Standing Hip Abduction': {
+    joints: 'Hip Joint',
+    desc: 'Lateral hip extension targeting gluteus medius strength.',
+    guidance: 'Stand tall and raise the target leg sideways away from the body.',
+    tip: 'Keep your trunk vertical; avoid leaning to the opposite side.'
+  },
+  'Standing Hip Flexion': {
+    joints: 'Hip Joint',
+    desc: 'Anterior hip elevation targeting hip flexors.',
+    guidance: 'Stand straight and raise your knee forward to a 90-degree angle.',
+    tip: 'Keep your standing leg fully straight and active.'
+  },
+  'Shoulder Flexion': {
+    joints: 'Shoulder Joint',
+    desc: 'Anterior shoulder mobility lift targeting deltoids.',
+    guidance: 'Slowly raise your arm straight forward and upward overhead.',
+    tip: 'Maintain a side-view profile relative to the camera.'
+  },
+  'Shoulder Abduction': {
+    joints: 'Shoulder Joint',
+    desc: 'Lateral shoulder mobility lift targeting middle deltoids.',
+    guidance: 'Raise your arm straight out to the side until it is parallel to the ground.',
+    tip: 'Face the camera directly with both shoulders visible.'
+  },
+  'Wall Slides': {
+    joints: 'Shoulders & Upper Back',
+    desc: 'Scapular stability training sliding arms against vertical surface.',
+    guidance: 'Keep your back and arms flat against the wall, sliding elbows upward.',
+    tip: 'Keep both shoulder blades pinned to the surface to optimize scapular glide.'
+  },
+  'Calf Raise': {
+    joints: 'Ankle / Calf',
+    desc: 'Ankle plantarflexion training targeting gastrocnemius.',
+    guidance: 'Stand tall and raise up onto the balls of your feet, lifting heels high.',
+    tip: 'Lower down slowly to engage eccentric calf control.'
+  },
+  'Marching in Place': {
+    joints: 'Full Lower Body',
+    desc: 'Rhythmic gait and balance coordination training.',
+    guidance: 'Alternate raising each knee to hip level in a steady marching rhythm.',
+    tip: 'Keep the chest upright and pump arms lightly for balance.'
+  },
+  'Single-Leg Balance': {
+    joints: 'Ankle & Hip Core',
+    desc: 'Proprioceptive balance training on a single limb.',
+    guidance: 'Raise one foot off the ground and maintain a steady standing posture.',
+    tip: 'Focus your gaze on a fixed point ahead to stabilize balance.'
+  },
+  'Bird Dog': {
+    joints: 'Core & Spine',
+    desc: 'Contralateral limb extensions for core and spinal stability.',
+    guidance: 'On all fours, extend one arm forward and the opposite leg straight back.',
+    tip: 'Keep your neck neutral and your hips square to the ground.'
+  },
+  'Squat': {
+    joints: 'Knees, Hips & Glutes',
+    desc: 'Standard deep squat for lower body strength and range of motion.',
+    guidance: 'Lower hips backward while bending knees to a target flexion angle.',
+    tip: 'Keep your weight in your heels and your chest proud.'
+  },
+  'Lunge': {
+    joints: 'Hips & Knees',
+    desc: 'Unilateral forward stepping leg rehabilitation.',
+    guidance: 'Step forward and lower hips until your back knee almost touches the floor.',
+    tip: 'Ensure your front knee does not overshoot your ankle.'
+  }
+};
+
 const getTargetArea = (joints) => {
   if (!joints || joints.length === 0) return 'General';
   const lowerBodyJoints = [25, 26, 27, 28, 29, 30, 31, 32];
@@ -132,6 +249,32 @@ export default function Library() {
 
                   <p className="text-[11px] text-slate-500 font-semibold mt-1">Focus Area: <span className="text-teal-600">{area}</span></p>
                   
+                  {/* Anatomical Reference & Execution Guide */}
+                  {(() => {
+                    const ref = EXERCISE_REFS[ex.name] || {
+                      joints: 'General Body',
+                      desc: 'Standard clinical range of motion rehabilitation.',
+                      guidance: 'Position yourself clearly in the camera frame.',
+                      tip: 'Follow the live audio coach feedback.'
+                    };
+                    return (
+                      <div className="mt-3 bg-slate-50 border border-slate-150 rounded-xl p-3 text-[10px] space-y-2 text-slate-600">
+                        <div>
+                          <span className="font-extrabold text-slate-900 block text-[8px] uppercase tracking-wider">Anatomical Target</span>
+                          <span>{ref.joints}</span>
+                        </div>
+                        <div>
+                          <span className="font-extrabold text-slate-900 block text-[8px] uppercase tracking-wider">Execution Guide</span>
+                          <span className="leading-relaxed block">{ref.guidance}</span>
+                        </div>
+                        <div>
+                          <span className="font-extrabold text-slate-900 block text-[8px] uppercase tracking-wider">Coach Pro-Tip</span>
+                          <span className="text-[9px] text-teal-750 italic block">{ref.tip}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {ex.target_joints && (
                     <p className="text-[10px] text-slate-400 mt-2.5 font-semibold">
                       Tracked points: <span className="font-bold text-slate-500">{ex.target_joints.length} MediaPipe landmarks</span>
@@ -143,7 +286,7 @@ export default function Library() {
                   <div className="text-[9px] font-bold text-teal-700 bg-teal-50/70 border border-teal-150 px-2.5 py-1 rounded-lg">
                     Success Angle: <span className="font-black">{ex.success_angle}{unit}</span>
                   </div>
-                  <div className="text-[9px] font-bold text-slate-650 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+                  <div className="text-[9px] font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
                     Reset Angle: <span className="font-black">{ex.failure_angle}{unit}</span>
                   </div>
                 </div>

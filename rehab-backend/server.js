@@ -143,6 +143,169 @@ const seedDatabase = async () => {
     await testPatient.save();
     console.log('🌱 Test patient seeded: patient@test.com / password123');
   }
+
+  // Seed extra patients to match mockup
+  const mockPatients = [
+    { name: 'John Doe', email: 'john@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: testDoctor._id },
+    { name: 'Shivam', email: 'shivam@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: testDoctor._id },
+    { name: 'test 1', email: 'test1@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: null },
+    { name: 'Vaibhav Mamgain', email: 'vaibhav@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: null }
+  ];
+
+  for (const mp of mockPatients) {
+    let existing = await User.findOne({ email: mp.email });
+    if (!existing) {
+      existing = new User(mp);
+      await existing.save();
+      console.log(`🌱 Mock patient seeded: ${mp.name}`);
+    }
+  }
+
+  // Seed test session logs for Jane Doe to populate charts
+  const testPatientObj = await User.findOne({ email: 'patient@test.com' });
+  if (testPatientObj) {
+    const existingSessions = await SessionLog.findOne({ patientId: testPatientObj._id });
+    if (!existingSessions) {
+      const baseDate = new Date();
+      const mockSessions = [
+        {
+          patientId: testPatientObj._id,
+          exerciseName: 'Mini Squat',
+          reps_completed: 6,
+          max_angle_achieved: 110,
+          gamePlayed: 'Standard Tracker',
+          hold_time_achieved: 8,
+          success_rate: 80,
+          date: new Date(baseDate.getTime() - 6 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: testPatientObj._id,
+          exerciseName: 'Mini Squat',
+          reps_completed: 12,
+          max_angle_achieved: 135,
+          gamePlayed: 'Flappy Rehab',
+          hold_time_achieved: 10,
+          success_rate: 90,
+          date: new Date(baseDate.getTime() - 5 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: testPatientObj._id,
+          exerciseName: 'Mini Squat',
+          reps_completed: 6,
+          max_angle_achieved: 138,
+          gamePlayed: 'Zen Bloom',
+          hold_time_achieved: 10,
+          success_rate: 85,
+          date: new Date(baseDate.getTime() - 4 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: testPatientObj._id,
+          exerciseName: 'Mini Squat',
+          reps_completed: 11,
+          max_angle_achieved: 163,
+          gamePlayed: 'Shadow Match',
+          hold_time_achieved: 10,
+          success_rate: 95,
+          date: new Date(baseDate.getTime() - 3 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: testPatientObj._id,
+          exerciseName: 'Mini Squat',
+          reps_completed: 10,
+          max_angle_achieved: 160,
+          gamePlayed: 'Standard Tracker',
+          hold_time_achieved: 10,
+          success_rate: 100,
+          date: new Date(baseDate.getTime() - 2 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: testPatientObj._id,
+          exerciseName: 'Mini Squat',
+          reps_completed: 8,
+          max_angle_achieved: 160,
+          gamePlayed: 'Flappy Rehab',
+          hold_time_achieved: 9,
+          success_rate: 90,
+          date: new Date(baseDate.getTime() - 1 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: testPatientObj._id,
+          exerciseName: 'Mini Squat',
+          reps_completed: 5,
+          max_angle_achieved: 152,
+          gamePlayed: 'Shadow Match',
+          hold_time_achieved: 8,
+          success_rate: 88,
+          date: baseDate
+        }
+      ];
+      await SessionLog.insertMany(mockSessions);
+      console.log('🌱 Seeded mock session logs for Jane Doe');
+    }
+  }
+
+  // Seed test session logs for John Doe to populate charts
+  const johnPatientObj = await User.findOne({ email: 'john@test.com' });
+  if (johnPatientObj) {
+    const existingJohnSessions = await SessionLog.findOne({ patientId: johnPatientObj._id });
+    if (!existingJohnSessions) {
+      const baseDate = new Date();
+      const mockSessions = [
+        {
+          patientId: johnPatientObj._id,
+          exerciseName: 'Bicep Curl',
+          reps_completed: 4,
+          max_angle_achieved: 120,
+          gamePlayed: 'Standard Tracker',
+          hold_time_achieved: 0,
+          success_rate: 80,
+          date: new Date(baseDate.getTime() - 5 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: johnPatientObj._id,
+          exerciseName: 'Bicep Curl',
+          reps_completed: 8,
+          max_angle_achieved: 100,
+          gamePlayed: 'Flappy Rehab',
+          hold_time_achieved: 0,
+          success_rate: 85,
+          date: new Date(baseDate.getTime() - 4 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: johnPatientObj._id,
+          exerciseName: 'Bicep Curl',
+          reps_completed: 10,
+          max_angle_achieved: 92,
+          gamePlayed: 'Shadow Match',
+          hold_time_achieved: 0,
+          success_rate: 90,
+          date: new Date(baseDate.getTime() - 3 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: johnPatientObj._id,
+          exerciseName: 'Bicep Curl',
+          reps_completed: 12,
+          max_angle_achieved: 85,
+          gamePlayed: 'Flappy Rehab',
+          hold_time_achieved: 0,
+          success_rate: 95,
+          date: new Date(baseDate.getTime() - 2 * 24 * 60 * 60 * 1000)
+        },
+        {
+          patientId: johnPatientObj._id,
+          exerciseName: 'Bicep Curl',
+          reps_completed: 15,
+          max_angle_achieved: 85,
+          gamePlayed: 'Shadow Match',
+          hold_time_achieved: 0,
+          success_rate: 100,
+          date: baseDate
+        }
+      ];
+      await SessionLog.insertMany(mockSessions);
+      console.log('🌱 Seeded mock session logs for John Doe');
+    }
+  }
 };
 mongoose.connection.once('open', seedDatabase);
 
@@ -184,7 +347,7 @@ app.post('/api/auth/register', async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: 'Welcome to RehabSync - Verify Your Email',
+      subject: 'Welcome to PoseCare - Verify Your Email',
       html: `<h3>Hello ${name},</h3><p>Your verification code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
     });
     */
@@ -239,7 +402,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: 'RehabSync - Login Code',
+      subject: 'PoseCare - Login Code',
       html: `<p>Your secure login code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
     });
 

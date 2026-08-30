@@ -17,8 +17,8 @@ export default function Navbar() {
         <div className="flex justify-between h-16 items-center">
           {/* Brand */}
           <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={() => navigate('/')}>
-            <span className="text-teal-600 text-2xl font-bold tracking-tight">Rehab</span>
-            <span className="text-gray-800 text-2xl font-bold tracking-tight">Sync</span>
+            <span className="text-teal-600 text-2xl font-bold tracking-tight">Pose</span>
+            <span className="text-gray-800 text-2xl font-bold tracking-tight">Care</span>
           </div>
 
           {/* Center Links */}

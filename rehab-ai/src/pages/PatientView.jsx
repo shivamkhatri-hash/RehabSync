@@ -16,6 +16,145 @@ const calculateAngle = (a, b, c) => {
   return angle;
 };
 
+const EXERCISE_REFS = {
+  'Bicep Curl': {
+    joints: 'Elbow Joint',
+    desc: 'Elbow flexion training targeting the biceps brachii.',
+    guidance: 'Keep your upper arm horizontal at shoulder height. Bend elbow to 90 degrees.',
+    tip: 'Face the camera and avoid dropping your upper arm below shoulder level.'
+  },
+  'Push-up': {
+    joints: 'Elbow & Shoulder',
+    desc: 'Upper body pushing movement targeting chest and triceps.',
+    guidance: 'Keep your torso straight and lower your chest until elbows bend to 90°.',
+    tip: 'Maintain a tight core and prevent your hips from sagging.'
+  },
+  'Crunch': {
+    joints: 'Thoracic / Core',
+    desc: 'Abdominal contraction targeting rectus abdominis.',
+    guidance: 'Lie on your back, knees bent, and raise your upper trunk towards your knees.',
+    tip: 'Do not pull your neck with your hands. Focus on core contractions.'
+  },
+  'Seated Knee Extension': {
+    joints: 'Knee Joint',
+    desc: 'Quadriceps strength training for active knee extension.',
+    guidance: 'Sit upright and slowly straighten your knee completely to full extension.',
+    tip: 'Use a side view showing your hip, knee, and ankle clearly.'
+  },
+  'Straight Leg Raise': {
+    joints: 'Hip & Knee',
+    desc: 'Hip flexor and quadriceps rehab with straight leg elevation.',
+    guidance: 'Lie flat, keep the target leg fully straight, and raise it 45 degrees.',
+    tip: 'Ensure the knee does not bend during the lift.'
+  },
+  'Mini Squat': {
+    joints: 'Knee & Hip',
+    desc: 'Functional partial squat training targeting quads and glutes.',
+    guidance: 'Lower your hips slightly as if sitting down, keeping knees behind toes.',
+    tip: 'Align the camera to capture a side profile of your lower body.'
+  },
+  'Sit-to-Stand': {
+    joints: 'Full Lower Body',
+    desc: 'Functional mobility training transferring from seated to standing.',
+    guidance: 'Stand up fully from a chair and sit back down slowly with control.',
+    tip: 'Do not use your arms to push off if you are building pure leg strength.'
+  },
+  'Standing Knee Flexion': {
+    joints: 'Knee / Hamstring',
+    desc: 'Knee flexion stretching targeting the hamstring muscle group.',
+    guidance: 'Stand tall and bend your knee backwards, bringing your heel towards your glutes.',
+    tip: 'Keep your thighs parallel to each other during the flexion.'
+  },
+  'Standing Hip Abduction': {
+    joints: 'Hip Joint',
+    desc: 'Lateral hip extension targeting gluteus medius strength.',
+    guidance: 'Stand tall and raise the target leg sideways away from the body.',
+    tip: 'Keep your trunk vertical; avoid leaning to the opposite side.'
+  },
+  'Standing Hip Flexion': {
+    joints: 'Hip Joint',
+    desc: 'Anterior hip elevation targeting hip flexors.',
+    guidance: 'Stand straight and raise your knee forward to a 90-degree angle.',
+    tip: 'Keep your standing leg fully straight and active.'
+  },
+  'Shoulder Flexion': {
+    joints: 'Shoulder Joint',
+    desc: 'Anterior shoulder mobility lift targeting deltoids.',
+    guidance: 'Slowly raise your arm straight forward and upward overhead.',
+    tip: 'Maintain a side-view profile relative to the camera.'
+  },
+  'Shoulder Abduction': {
+    joints: 'Shoulder Joint',
+    desc: 'Lateral shoulder mobility lift targeting middle deltoids.',
+    guidance: 'Raise your arm straight out to the side until it is parallel to the ground.',
+    tip: 'Face the camera directly with both shoulders visible.'
+  },
+  'Wall Slides': {
+    joints: 'Shoulders & Upper Back',
+    desc: 'Scapular stability training sliding arms against vertical surface.',
+    guidance: 'Keep your back and arms flat against the wall, sliding elbows upward.',
+    tip: 'Keep both shoulder blades pinned to the surface to optimize scapular glide.'
+  },
+  'Calf Raise': {
+    joints: 'Ankle / Calf',
+    desc: 'Ankle plantarflexion training targeting gastrocnemius.',
+    guidance: 'Stand tall and raise up onto the balls of your feet, lifting heels high.',
+    tip: 'Lower down slowly to engage eccentric calf control.'
+  },
+  'Marching in Place': {
+    joints: 'Full Lower Body',
+    desc: 'Rhythmic gait and balance coordination training.',
+    guidance: 'Alternate raising each knee to hip level in a steady marching rhythm.',
+    tip: 'Keep the chest upright and pump arms lightly for balance.'
+  },
+  'Single-Leg Balance': {
+    joints: 'Ankle & Hip Core',
+    desc: 'Proprioceptive balance training on a single limb.',
+    guidance: 'Raise one foot off the ground and maintain a steady standing posture.',
+    tip: 'Focus your gaze on a fixed point ahead to stabilize balance.'
+  },
+  'Bird Dog': {
+    joints: 'Core & Spine',
+    desc: 'Contralateral limb extensions for core and spinal stability.',
+    guidance: 'On all fours, extend one arm forward and the opposite leg straight back.',
+    tip: 'Keep your neck neutral and your hips square to the ground.'
+  },
+  'Squat': {
+    joints: 'Knees, Hips & Glutes',
+    desc: 'Standard deep squat for lower body strength and range of motion.',
+    guidance: 'Lower hips backward while bending knees to a target flexion angle.',
+    tip: 'Keep your weight in your heels and your chest proud.'
+  },
+  'Lunge': {
+    joints: 'Hips & Knees',
+    desc: 'Unilateral forward stepping leg rehabilitation.',
+    guidance: 'Step forward and lower hips until your back knee almost touches the floor.',
+    tip: 'Ensure your front knee does not overshoot your ankle.'
+  }
+};
+
+const SYSTEM_DEFAULT_EXERCISES = [
+  { exerciseName: 'Bicep Curl', successAngle: 85, failureAngle: 150, holdTime: 0, targetReps: 15 },
+  { exerciseName: 'Push-up', successAngle: 105, failureAngle: 155, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Crunch', successAngle: 80, failureAngle: 115, holdTime: 2, targetReps: 12 },
+  { exerciseName: 'Seated Knee Extension', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Straight Leg Raise', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Mini Squat', successAngle: 125, failureAngle: 165, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Sit-to-Stand', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Standing Knee Flexion', successAngle: 100, failureAngle: 165, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Standing Hip Abduction', successAngle: 0.28, failureAngle: 0.05, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Standing Hip Flexion', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Shoulder Flexion', successAngle: 105, failureAngle: 20, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Shoulder Abduction', successAngle: 95, failureAngle: 20, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Wall Slides', successAngle: 100, failureAngle: 25, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Calf Raise', successAngle: 0.07, failureAngle: 0.025, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Marching in Place', successAngle: 120, failureAngle: 160, holdTime: 0, targetReps: 15 },
+  { exerciseName: 'Single-Leg Balance', successAngle: 0.10, failureAngle: 0.02, holdTime: 5, targetReps: 5 },
+  { exerciseName: 'Bird Dog', successAngle: 0.80, failureAngle: 0.45, holdTime: 5, targetReps: 5 },
+  { exerciseName: 'Squat', successAngle: 100, failureAngle: 165, holdTime: 0, targetReps: 10 },
+  { exerciseName: 'Lunge', successAngle: 105, failureAngle: 160, holdTime: 0, targetReps: 10 }
+];
+
 const getTorsoAngle = (shoulder, hip) => {
   const dx = shoulder.x - hip.x;
   const dy = shoulder.y - hip.y;
@@ -85,7 +224,13 @@ const OFFLINE_EXERCISE_SPECS = {
     landmark_sets: [[11, 13, 15], [12, 14, 16]],
     bilateral: false,
     target_direction: "decrease",
-    camera_guidance: "Use a front-side view with shoulder, elbow, and wrist visible."
+    camera_guidance: "Raise your upper arm horizontally to shoulder level and face the camera."
+  },
+  "bicep_curl_shoulder": {
+    landmark_sets: [[23, 11, 13], [24, 12, 14]],
+    bilateral: false,
+    target_direction: "increase",
+    camera_guidance: "Face the camera or sit side-on with hip, shoulder, elbow, and wrist visible."
   },
   "wall_slides": {
     landmark_sets: [[23, 24, 11, 12, 13, 14, 15, 16]],
@@ -203,11 +348,13 @@ export default function PatientView() {
   const [reps, setReps] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
   const [holdTimeLeft, setHoldTimeLeft] = useState(0);
-  const [activeTab, setActiveTab] = useState('workout'); // 'workout', 'stats', 'quests'
+  const [activeTab, setActiveTab] = useState('home'); // 'home', 'workout', 'stats', 'quests'
   const [sessions, setSessions] = useState([]);
   
   const isDownRef = useRef(false);
   const repsRef = useRef(0);
+  const totalFramesRef = useRef(0);
+  const validFramesRef = useRef(0);
   const lastRepTime = useRef(0);
   const holdStartRef = useRef(null);
   const hasCountedRepRef = useRef(false);
@@ -269,38 +416,35 @@ export default function PatientView() {
     const loadExerciseData = async () => {
       try {
         const prescrRes = await fetch(`${API_URL}/api/prescriptions/patient/${storedUser.id}`);
-        let exercisesToUse = [];
+        let prescribedExList = [];
         if (prescrRes.ok) {
           const prescrData = await prescrRes.json();
           if (prescrData && prescrData.exercises && prescrData.exercises.length > 0) {
-            exercisesToUse = prescrData.exercises;
+            prescribedExList = prescrData.exercises;
           }
         }
         
-        if (exercisesToUse.length === 0) {
-          // Fallback: If no prescription is assigned, load system defaults
-          exercisesToUse = [
-            { exerciseName: 'Bicep Curl', successAngle: 85, failureAngle: 150, holdTime: 0, targetReps: 15 },
-            { exerciseName: 'Push-up', successAngle: 105, failureAngle: 155, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Crunch', successAngle: 80, failureAngle: 115, holdTime: 2, targetReps: 12 },
-            { exerciseName: 'Seated Knee Extension', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Straight Leg Raise', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Mini Squat', successAngle: 125, failureAngle: 165, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Sit-to-Stand', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Standing Knee Flexion', successAngle: 100, failureAngle: 165, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Standing Hip Abduction', successAngle: 0.28, failureAngle: 0.05, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Standing Hip Flexion', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Shoulder Flexion', successAngle: 105, failureAngle: 20, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Shoulder Abduction', successAngle: 95, failureAngle: 20, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Wall Slides', successAngle: 100, failureAngle: 25, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Calf Raise', successAngle: 0.07, failureAngle: 0.025, holdTime: 0, targetReps: 10 },
-            { exerciseName: 'Marching in Place', successAngle: 120, failureAngle: 160, holdTime: 0, targetReps: 15 },
-            { exerciseName: 'Single-Leg Balance', successAngle: 0.10, failureAngle: 0.02, holdTime: 5, targetReps: 5 },
-            { exerciseName: 'Bird Dog', successAngle: 0.80, failureAngle: 0.45, holdTime: 5, targetReps: 5 }
-          ];
-        }
+        // Combine: prescribed exercises first, then defaults that are not prescribed
+        const combinedList = [];
+        const prescribedNames = new Set(prescribedExList.map(e => e.exerciseName.toLowerCase()));
 
-        const enriched = await Promise.all(exercisesToUse.map(async (ex) => {
+        prescribedExList.forEach(e => {
+          combinedList.push({
+            ...e,
+            isPrescribed: true
+          });
+        });
+
+        SYSTEM_DEFAULT_EXERCISES.forEach(e => {
+          if (!prescribedNames.has(e.exerciseName.toLowerCase())) {
+            combinedList.push({
+              ...e,
+              isPrescribed: false
+            });
+          }
+        });
+
+        const enriched = await Promise.all(combinedList.map(async (ex) => {
           const specs = await fetchExerciseSpecs(ex.exerciseName);
           return {
             name: ex.exerciseName,
@@ -308,6 +452,7 @@ export default function PatientView() {
             failure_angle: ex.failureAngle,
             holdTime: ex.holdTime,
             targetReps: ex.targetReps,
+            isPrescribed: ex.isPrescribed,
             ...specs
           };
         }));
@@ -372,6 +517,8 @@ export default function PatientView() {
     setReps(0);
     holdStartRef.current = null;
     hasCountedRepRef.current = false;
+    totalFramesRef.current = 0;
+    validFramesRef.current = 0;
 
     const renderLoop = () => {
       if (poseLandmarker && videoRef.current?.readyState >= 2 && canvasRef.current) {
@@ -432,17 +579,28 @@ export default function PatientView() {
               const hip = detectedLandmarks[selectedArm === 'right' ? 24 : 23];
               const shoulder = detectedLandmarks[selectedArm === 'right' ? 12 : 11];
               const elbow = detectedLandmarks[selectedArm === 'right' ? 14 : 13];
+              const wrist = detectedLandmarks[selectedArm === 'right' ? 16 : 15];
               
               if (hip && shoulder && elbow && hip.visibility > 0.50 && shoulder.visibility > 0.50 && elbow.visibility > 0.50) {
                 const torsoAngle = getTorsoAngle(shoulder, hip);
-                const armSwingAngle = calculateAngle(hip, shoulder, elbow);
 
                 if (torsoAngle > 25) {
                   isPostureInvalid = true;
                   postureAlert = "Keep your body straight!";
-                } else if (armSwingAngle > 35) {
-                  isPostureInvalid = true;
-                  postureAlert = "Keep your elbow at your side!";
+                } else if (nameKey.includes("shoulder")) {
+                  if (wrist && wrist.visibility > 0.50) {
+                    const elbowAngle = calculateAngle(shoulder, elbow, wrist);
+                    if (Math.abs(elbowAngle - 90) > 15) {
+                      isPostureInvalid = true;
+                      postureAlert = "Keep your elbow at 90 degrees!";
+                    }
+                  }
+                } else {
+                  const armSwingAngle = calculateAngle(hip, shoulder, elbow);
+                  if (armSwingAngle < 70 || armSwingAngle > 110) {
+                    isPostureInvalid = true;
+                    postureAlert = "Keep your upper arm horizontal!";
+                  }
                 }
               }
             } else {
@@ -512,6 +670,11 @@ export default function PatientView() {
               hasCountedRepRef.current = false;
               gameStateRef.current.bloomPercentage = 0;
             }
+          }
+          
+          totalFramesRef.current += 1;
+          if (!isPostureInvalid) {
+            validFramesRef.current += 1;
           }
         }
 
@@ -699,7 +862,9 @@ export default function PatientView() {
         runner: 'Rehab Runner Dash'
       };
 
-      const successRateCalc = reps > 0 ? 100 : 0; // Simple placeholder or ratio
+      const totalF = totalFramesRef.current;
+      const validF = validFramesRef.current;
+      const successRateCalc = totalF > 0 ? Math.round((validF / totalF) * 100) : 100;
 
       const response = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
@@ -736,6 +901,10 @@ export default function PatientView() {
   };
 
   if (!user) return null;
+
+  // Split exercises into prescribed vs. general practice library
+  const doctorPrescribed = prescribedExercises.filter(ex => ex.isPrescribed);
+  const generalPractice = prescribedExercises.filter(ex => !ex.isPrescribed);
 
   // --- VIEW 1: PATIENT DASHBOARD VIEW ---
   if (mode === 'dashboard') {
@@ -819,6 +988,16 @@ export default function PatientView() {
           {/* Sub Navigation Tabs */}
           <div className="flex border border-slate-200 gap-1 bg-slate-100 p-1.5 rounded-2xl">
             <button 
+              onClick={() => setActiveTab('home')}
+              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'home' 
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10' 
+                  : 'text-slate-600 hover:text-slate-905 hover:bg-slate-200/60'
+              }`}
+            >
+              🏠 Overview
+            </button>
+            <button 
               onClick={() => setActiveTab('workout')}
               className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'workout' 
@@ -832,7 +1011,7 @@ export default function PatientView() {
               onClick={() => setActiveTab('stats')}
               className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'stats' 
-                  ? 'bg-teal-605 text-white shadow-md shadow-teal-600/10' 
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10' 
                   : 'text-slate-600 hover:text-slate-905 hover:bg-slate-200/60'
               }`}
             >
@@ -842,7 +1021,7 @@ export default function PatientView() {
               onClick={() => setActiveTab('quests')}
               className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'quests' 
-                  ? 'bg-teal-605 text-white shadow-md shadow-teal-600/10' 
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10' 
                   : 'text-slate-600 hover:text-slate-905 hover:bg-slate-200/60'
               }`}
             >
@@ -850,35 +1029,197 @@ export default function PatientView() {
             </button>
           </div>
 
+          {/* TAB 0: DASHBOARD OVERVIEW */}
+          {activeTab === 'home' && (
+            <div className="space-y-6">
+              {/* Daily Streak & Quick Start */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                
+                {/* Streak Card */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-2xl">🔥</div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Daily Streak</span>
+                    <span className="text-xl font-black text-slate-800">5 Days Active</span>
+                  </div>
+                </div>
+                
+                {/* Active Level Card */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-2xl">⚡</div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">XP Progress</span>
+                    <span className="text-xl font-black text-slate-800">{xpRemaining} / 250 XP</span>
+                  </div>
+                </div>
+
+                {/* Accuracy Card */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-pink-50 border border-pink-100 flex items-center justify-center text-2xl">🎯</div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Avg Accuracy</span>
+                    <span className="text-xl font-black text-slate-800">{avgSuccessRate}% Form</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Left Side: Prescription Status Card */}
+                <div className="md:col-span-1 space-y-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3">Active Prescription</h3>
+                  
+                  {prescribedExercises.length > 0 ? (
+                    <div className="space-y-4">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Prescribed Stretch</span>
+                        <span className="font-extrabold text-slate-800 text-base">{prescribedExercises[0].name}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                          <span className="text-slate-400 block font-bold text-[9px] uppercase">Goal Target</span>
+                          <span className="font-extrabold text-slate-800">{prescribedExercises[0].targetReps} Reps</span>
+                        </div>
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                          <span className="text-slate-400 block font-bold text-[9px] uppercase">Hold Time</span>
+                          <span className="font-extrabold text-slate-800">{prescribedExercises[0].holdTime || 0}s</span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setCurrentExercise(prescribedExercises[0]);
+                          setReps(0);
+                          repsRef.current = 0;
+                          setGameMode(getRecommendedGameMode(prescribedExercises[0]));
+                          setActiveTab('workout');
+                        }}
+                        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-1 shadow-md shadow-teal-600/10"
+                      >
+                        🏋️‍♂️ Start Workout Now
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">No active prescription found. Enjoy open practice in Workout Hub!</p>
+                  )}
+                </div>
+
+                {/* Right Side: Weekly Activity Chart */}
+                <div className="md:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 mb-4">Weekly Repetitions Trend</h3>
+                    {sessions.length > 0 ? (
+                      <div className="relative h-44 w-full flex items-end justify-between px-2 pt-4">
+                        {/* Grid lines */}
+                        <div className="absolute inset-x-0 top-0 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">15 Reps</div>
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">8 Reps</div>
+                        <div className="absolute inset-x-0 bottom-0 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">0 Reps</div>
+                        
+                        {/* Sparkline representation */}
+                        {sessions.slice(-7).reverse().map((session, i) => {
+                          const repsVal = session.reps_completed || 0;
+                          const heightPct = Math.min(100, (repsVal / 15) * 100);
+                          return (
+                            <div key={i} className="flex-1 flex flex-col items-center gap-2 group z-10">
+                              <div className="relative w-8 bg-gradient-to-t from-teal-500 to-indigo-500 rounded-lg shadow-sm transition-all duration-500 hover:scale-105" style={{ height: `${Math.max(10, heightPct)}%` }}>
+                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-mono text-[9px] font-bold px-1.5 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{repsVal} reps</span>
+                              </div>
+                              <span className="text-[8px] text-slate-400 font-bold font-mono uppercase tracking-wider">{new Date(session.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="h-44 flex items-center justify-center text-slate-400 text-xs">
+                        Complete workouts to display your weekly repetition progress!
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quest Checklist Preview */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Active Quests</h3>
+                  <button onClick={() => setActiveTab('quests')} className="text-xs text-teal-600 hover:text-teal-700 font-bold">View Leaderboard &rarr;</button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {quests.slice(0, 2).map((quest, idx) => (
+                    <div key={idx} className={`p-4 rounded-2xl border flex justify-between items-center ${quest.done ? 'bg-teal-50/20 border-teal-100' : 'bg-slate-50/30 border-slate-150'}`}>
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold text-slate-800 block">{quest.name} <span className="text-[9px] font-black text-amber-600 ml-1">+{quest.reward}</span></span>
+                        <p className="text-[10px] text-slate-400 leading-tight">{quest.desc}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${quest.done ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-450'}`}>{quest.done ? '✓ Done' : 'Pending'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: WORKOUT HUB */}
           {activeTab === 'workout' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Exercises Prescriptions Roster */}
               <div className="md:col-span-1 space-y-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-fit">
-                <h2 className="text-base font-extrabold text-slate-900 border-b border-slate-100 pb-3">Prescribed Exercises</h2>
-                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
-                  {prescribedExercises.map((ex, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => {
-                        setCurrentExercise(ex);
-                        setReps(0);
-                        repsRef.current = 0;
-                        setGameMode(getRecommendedGameMode(ex));
-                      }}
-                      className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                        currentExercise?.name === ex.name 
-                          ? 'border-teal-500 bg-teal-50/50 shadow-sm shadow-teal-50/10' 
-                          : 'border-slate-150 bg-slate-50/20 hover:bg-slate-50 hover:border-slate-250'
-                      }`}
-                    >
-                      <h3 className="font-bold text-slate-800 text-sm">{ex.name}</h3>
-                      <p className="text-[11px] text-slate-500 mt-1">Target: {ex.targetReps} reps</p>
-                      {ex.holdTime > 0 && <p className="text-[11px] text-indigo-650 font-bold mt-0.5">⏱ Hold: {ex.holdTime}s</p>}
+                <h2 className="text-base font-extrabold text-slate-900 border-b border-slate-100 pb-3">Exercise Roster</h2>
+                <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
+                  
+                  {/* Doctor Prescribed Section */}
+                  {doctorPrescribed.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="block text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1.5">⭐ Doctor Prescribed</span>
+                      {doctorPrescribed.map((ex, idx) => (
+                        <div 
+                          key={ex.name} 
+                          onClick={() => {
+                            setCurrentExercise(ex);
+                            setReps(0);
+                            repsRef.current = 0;
+                            setGameMode(getRecommendedGameMode(ex));
+                          }}
+                          className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                            currentExercise?.name === ex.name 
+                              ? 'border-teal-500 bg-teal-50/50 shadow-sm' 
+                              : 'border-slate-100 bg-slate-50/20 hover:bg-slate-50 hover:border-slate-200'
+                          }`}
+                        >
+                          <h3 className="font-bold text-slate-800 text-sm">{ex.name}</h3>
+                          <p className="text-[11px] text-slate-500 mt-1">Target: {ex.targetReps} reps</p>
+                          {ex.holdTime > 0 && <p className="text-[11px] text-indigo-600 font-bold mt-0.5">⏱ Hold: {ex.holdTime}s</p>}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  {/* General Practice Section */}
+                  <div className="space-y-2">
+                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">📋 General Practice</span>
+                    {generalPractice.map((ex, idx) => (
+                      <div 
+                        key={ex.name} 
+                        onClick={() => {
+                          setCurrentExercise(ex);
+                          setReps(0);
+                          repsRef.current = 0;
+                          setGameMode(getRecommendedGameMode(ex));
+                        }}
+                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                          currentExercise?.name === ex.name 
+                            ? 'border-teal-500 bg-teal-50/50 shadow-sm' 
+                            : 'border-slate-100 bg-slate-50/20 hover:bg-slate-50 hover:border-slate-200'
+                        }`}
+                      >
+                        <h3 className="font-bold text-slate-800 text-sm">{ex.name}</h3>
+                        <p className="text-[11px] text-slate-500 mt-1">Target: {ex.targetReps} reps</p>
+                        {ex.holdTime > 0 && <p className="text-[11px] text-indigo-600 font-bold mt-0.5">⏱ Hold: {ex.holdTime}s</p>}
+                      </div>
+                    ))}
+                  </div>
+
                   {prescribedExercises.length === 0 && (
-                    <p className="text-sm text-slate-400">Loading prescription logs...</p>
+                    <p className="text-sm text-slate-400">Loading exercises...</p>
                   )}
                 </div>
 
@@ -890,7 +1231,7 @@ export default function PatientView() {
                       onClick={() => setSelectedArm('left')}
                       className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
                         selectedArm === 'left' 
-                          ? 'bg-teal-650 border-teal-650 text-white shadow-sm shadow-teal-900/10' 
+                          ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-900/10' 
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
@@ -900,7 +1241,7 @@ export default function PatientView() {
                       onClick={() => setSelectedArm('right')}
                       className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
                         selectedArm === 'right' 
-                          ? 'bg-teal-650 border-teal-650 text-white shadow-sm shadow-teal-900/10' 
+                          ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-900/10' 
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
@@ -908,6 +1249,37 @@ export default function PatientView() {
                     </button>
                   </div>
                 </div>
+
+                {/* Exercise Reference Card in Workout tab */}
+                {currentExercise && (
+                  <div className="border-t border-slate-100 pt-4 mt-4 text-[11px] space-y-2 text-slate-600">
+                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Exercise Reference</span>
+                    {(() => {
+                      const ref = EXERCISE_REFS[currentExercise.name] || {
+                        joints: 'General Body',
+                        desc: 'Standard clinical range of motion rehabilitation.',
+                        guidance: 'Position yourself clearly in the camera frame.',
+                        tip: 'Follow the live audio coach feedback.'
+                      };
+                      return (
+                        <div className="bg-slate-50 border border-slate-150 rounded-2xl p-3.5 space-y-2.5">
+                          <div>
+                            <span className="font-extrabold text-slate-900 block text-[8px] uppercase tracking-wider">Anatomical Target</span>
+                            <span>{ref.joints}</span>
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-slate-900 block text-[8px] uppercase tracking-wider">Execution Guide</span>
+                            <span className="leading-normal">{ref.guidance}</span>
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-slate-900 block text-[8px] uppercase tracking-wider">Coach Pro-Tip</span>
+                            <span className="text-[9px] text-teal-700 italic">{ref.tip}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
               {/* Game Mode Picker */}
@@ -1004,7 +1376,7 @@ export default function PatientView() {
                 {currentExercise && (
                   <button 
                     onClick={() => setMode('scanner')}
-                    className="w-full bg-teal-650 hover:bg-teal-700 text-white font-extrabold py-4 rounded-2xl shadow-md shadow-teal-600/10 transition-colors flex items-center justify-center gap-2 text-sm"
+                    className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-4 rounded-2xl shadow-md shadow-teal-600/10 transition-colors flex items-center justify-center gap-2 text-sm"
                   >
                     <span>Start AI Gaming Rehab Session</span> &rarr;
                   </button>
@@ -1019,7 +1391,7 @@ export default function PatientView() {
               {/* Level progress bar */}
               <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-black text-teal-650 uppercase tracking-widest">Rehab Progress & Level</h3>
+                  <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest">Rehab Progress & Level</h3>
                   <span className="text-xs text-slate-500 font-bold">Level {currentLevel} {totalXP > 500 ? 'Expert' : 'Rookie'}</span>
                 </div>
                 <div className="bg-slate-100 rounded-full h-4 overflow-hidden mt-3 shadow-inner relative border border-slate-200/80">
@@ -1039,7 +1411,7 @@ export default function PatientView() {
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-sm">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Total Reps Completed</p>
-                  <p className="text-2xl font-black text-indigo-650">{totalReps}</p>
+                  <p className="text-2xl font-black text-indigo-600">{totalReps}</p>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-sm">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Avg Form Accuracy</p>
@@ -1087,11 +1459,11 @@ export default function PatientView() {
                     <tbody className="divide-y divide-slate-100">
                       {sessions.map((session, idx) => (
                         <tr key={idx} className="text-slate-600">
-                          <td className="py-3.5 pr-2 font-medium">{new Date(session.timestamp).toLocaleDateString()}</td>
+                          <td className="py-3.5 pr-2 font-medium">{new Date(session.date).toLocaleDateString()}</td>
                           <td className="py-3.5 pr-2 font-bold text-slate-800">{session.exerciseName}</td>
                           <td className="py-3.5 pr-2">{session.gamePlayed || 'Standard Tracker'}</td>
                           <td className="py-3.5 pr-2 text-center font-bold text-teal-600">{session.reps_completed}</td>
-                          <td className="py-3.5 text-center font-bold text-indigo-650">{session.success_rate || 100}%</td>
+                          <td className="py-3.5 text-center font-bold text-indigo-600">{session.success_rate || 100}%</td>
                         </tr>
                       ))}
                       {sessions.length === 0 && (
@@ -1231,10 +1603,22 @@ export default function PatientView() {
         Complete & Log Session
       </button>
 
-      {/* Calibrator Guide */}
-      <p className="text-xs text-slate-400 mt-4 text-center max-w-md bg-slate-900 border border-slate-800 p-3 rounded-xl">
-        💡 <span className="font-bold text-teal-400">Camera Setup:</span> {currentExercise?.camera_guidance || "Keep the required joints visible in the frame."}
-      </p>
+      {/* Calibrator Guide & Reference overlay */}
+      <div className="text-xs text-slate-405 mt-4 text-left max-w-md bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+        <p>
+          💡 <span className="font-bold text-teal-400">Camera Setup:</span> {currentExercise?.camera_guidance || "Keep the required joints visible in the frame."}
+        </p>
+        {currentExercise && EXERCISE_REFS[currentExercise.name] && (
+          <div className="border-t border-slate-800 pt-2.5 space-y-2 text-[11px] text-slate-350">
+            <p>
+              🏋️‍♂️ <span className="font-bold text-slate-200">Execution Guide:</span> {EXERCISE_REFS[currentExercise.name].guidance}
+            </p>
+            <p className="italic text-teal-400">
+              💡 Pro-Tip: {EXERCISE_REFS[currentExercise.name].tip}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

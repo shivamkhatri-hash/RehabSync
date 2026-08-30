@@ -20,7 +20,7 @@ CORS(app)
 def health():
     return jsonify(
         {
-            "service": "RehabSync CV Service",
+            "service": "PoseCare CV Service",
             "status": "running",
             "exercises": get_exercise_names(),
         }

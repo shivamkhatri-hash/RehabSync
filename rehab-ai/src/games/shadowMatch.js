@@ -210,6 +210,8 @@ export const draw = (ctx, canvas, state, params) => {
   const targetWrist = targetSilhouette[j3];
   const actualWrist = mirroredPoints[j3];
 
+  let isMatching = false;
+
   if (targetWrist && actualWrist) {
     const dist = Math.sqrt(Math.pow(actualWrist.x - targetWrist.x, 2) + Math.pow(actualWrist.y - targetWrist.y, 2));
     
@@ -234,7 +236,7 @@ export const draw = (ctx, canvas, state, params) => {
     }
 
     // Patient must have correct angle AND correct posture (no strict coordinate distance penalty)
-    const isMatching = isAngleMatched && !isPostureInvalid;
+    isMatching = isAngleMatched && !isPostureInvalid;
 
     // Draw glowing keyhole ring
     ctx.save();
@@ -414,4 +416,20 @@ export const draw = (ctx, canvas, state, params) => {
     bottomHUDText = state.isHoldingPose ? `POPPING KEYHOLE: ${Math.round(state.matchProgress)}%` : `STEP 2: FLEX TO GOAL POSITION (${successAngle}°)`;
   }
   ctx.fillText(bottomHUDText, canvas.width / 2, canvas.height - 4);
+
+  // Draw red posture warning alert overlay banner at the top center of the tracker canvas
+  if (isPostureInvalid && postureAlert) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; // bold red
+    ctx.fillRect(canvas.width / 2 - 200, 52, 400, 42);
+    ctx.strokeStyle = '#f87171';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(canvas.width / 2 - 200, 52, 400, 42);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`⚠️ FORM WARNING: ${postureAlert}`, canvas.width / 2, 78);
+    ctx.restore();
+  }
 };

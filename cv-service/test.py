@@ -19,7 +19,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         description=
-            "RehabSync CV Tester"
+            "PoseCare CV Tester"
     )
 
     parser.add_argument(
@@ -74,7 +74,7 @@ def main():
     print("=" * 60)
 
     print(
-        "RehabSync Computer Vision Test"
+        "PoseCare Computer Vision Test"
     )
 
     print("=" * 60)
@@ -216,7 +216,7 @@ def main():
 
             cv2.imshow(
 
-                "RehabSync CV",
+                "PoseCare CV",
 
                 display_frame,
             )
@@ -230,7 +230,7 @@ def main():
                 )
 
                 cv2.imshow(
-                    "RehabSync Joint Movement Debugger",
+                    "PoseCare Joint Movement Debugger",
                     skeleton_frame,
                 )
 
