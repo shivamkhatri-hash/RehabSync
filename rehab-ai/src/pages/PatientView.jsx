@@ -774,7 +774,9 @@ export default function PatientView() {
               postureAlert,
               liveAngleVal,
               currentExercise,
-              selectedArm
+              selectedArm,
+              patientName: user.name,
+              sessionNumber: sessions.length + 1
             });
           }
 

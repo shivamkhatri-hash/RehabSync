@@ -176,7 +176,9 @@ export const draw = (ctx, canvas, state, params) => {
     postureAlert,
     liveAngleVal,
     currentExercise,
-    selectedArm
+    selectedArm,
+    patientName,
+    sessionNumber
   } = params;
 
   state.frameCount = (state.frameCount || 0) + 1;
@@ -279,8 +281,8 @@ export const draw = (ctx, canvas, state, params) => {
   // Patient metadata
   ctx.fillStyle = '#94a3b8';
   ctx.font = 'bold 8px monospace';
-  ctx.fillText("PATIENT: ALEX JOHNSON", 454, 60);
-  ctx.fillText("AGE: 28 | SESSION: 14", 454, 71);
+  ctx.fillText(`PATIENT: ${(patientName || 'Jane Doe').toUpperCase()}`, 454, 60);
+  ctx.fillText(`AGE: 28 | SESSION: ${sessionNumber || 1}`, 454, 71);
 
   const moveName = (currentExercise?.name || 'ACTIVE THERAPY').toUpperCase();
   ctx.fillStyle = '#14b8a6';
@@ -293,17 +295,18 @@ export const draw = (ctx, canvas, state, params) => {
   ctx.strokeStyle = 'rgba(71, 85, 105, 0.3)';
   ctx.strokeRect(452, 102, 176, 52);
 
+  const syncVal = isPostureInvalid ? (80 - Math.floor(Math.random() * 15)) : (96 + Math.floor(Math.random() * 4));
   ctx.fillStyle = '#cbd5e1';
   ctx.font = 'bold 7.5px monospace';
-  ctx.fillText("SYNCHRONIZATION: 98%", 458, 114);
+  ctx.fillText(`SYNCHRONIZATION: ${syncVal}%`, 458, 114);
 
   // Draw ECG-style synchronization wave
-  ctx.strokeStyle = '#10b981';
+  ctx.strokeStyle = isPostureInvalid ? '#ef4444' : '#10b981';
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let i = 0; i < 162; i++) {
     const angle = (state.frameCount + i) * 0.08;
-    const waveY = 136 + Math.sin(angle) * 10 + Math.cos(angle * 0.35) * 3;
+    const waveY = 136 + Math.sin(angle) * (isPostureInvalid ? 16 : 8) + Math.cos(angle * 0.35) * 3;
     if (i === 0) ctx.moveTo(458 + i, waveY);
     else ctx.lineTo(458 + i, waveY);
   }
@@ -335,8 +338,8 @@ export const draw = (ctx, canvas, state, params) => {
   ctx.fillText("MUSCLE ACTIVATION:", 454, 176);
 
   drawProgressBarHUD(192, m1, isHolding ? 95 : 88, '#10b981');
-  drawProgressBarHUD(214, m2, 45, '#eab308');
-  drawProgressBarHUD(236, m3, 74, '#10b981');
+  drawProgressBarHUD(214, m2, isPostureInvalid ? 15 : 45, isPostureInvalid ? '#ef4444' : '#eab308');
+  drawProgressBarHUD(236, m3, isHolding ? 90 : 74, '#10b981');
 
   // Angle tracking section
   ctx.fillStyle = '#0b0f19';
@@ -346,7 +349,7 @@ export const draw = (ctx, canvas, state, params) => {
 
   ctx.fillStyle = '#cbd5e1';
   ctx.font = 'bold 8px monospace';
-  ctx.fillText("KNEE FLEXION", 458, 271);
+  ctx.fillText(moveName, 458, 271);
 
   const angleValStr = liveAngleVal !== undefined ? `${liveAngleVal}°` : '---';
   const targetAngleStr = currentExercise?.success_angle !== undefined ? `${currentExercise.success_angle}°` : '---';
@@ -360,9 +363,10 @@ export const draw = (ctx, canvas, state, params) => {
   ctx.fillText(`GOAL THRESHOLD: ${targetAngleStr}`, 458, 312);
 
   // Symmetry indicators
+  const symmetryVal = isPostureInvalid ? (72 + Math.floor(Math.random() * 12)) : (94 + Math.floor(Math.random() * 5));
   ctx.fillStyle = '#cbd5e1';
   ctx.font = 'bold 8px monospace';
-  ctx.fillText("SYMMETRY INDEX: 96%", 454, 348);
+  ctx.fillText(`SYMMETRY INDEX: ${symmetryVal}%`, 454, 348);
 
   // Active status circle
   ctx.fillStyle = isPostureInvalid ? '#ef4444' : '#10b981';
