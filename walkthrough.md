@@ -53,14 +53,3 @@ We have successfully implemented the full suite of games, voice feedback guidanc
 - Executed `node --check server.js` within `rehab-backend`.
 - Returned exit code `0`, confirming JavaScript file syntax integrity.
 
----
-
-## UI Design Mockup Reference
-
-Here is a visual mockup illustrating the premium dark-theme UI concept for the **RehabSync** camera tracking workspace:
-
-![RehabSync UI Mockup](/C:/Users/msi 16/.gemini/antigravity-ide/brain/9303ba1a-9a3b-4032-96ee-19c55a92b0ff/rehab_ui_mockup_1787339470730.jpg)
-
-Here is a visual mockup illustrating the clean light-theme UI concept for the **RehabSync** Doctor Dashboard:
-
-![RehabSync Dashboard Mockup](/C:/Users/msi 16/.gemini/antigravity-ide/brain/9303ba1a-9a3b-4032-96ee-19c55a92b0ff/rehab_dashboard_mockup_1787339618102.jpg)

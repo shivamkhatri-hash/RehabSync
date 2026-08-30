@@ -54,7 +54,7 @@ graph LR
   - `User Schema`: Credentials, focus areas, user roles (doctor vs. patient).
   - `Prescription Schema`: Target angles, hold durations, and repetition goals.
   - `SessionLog Schema`: Completed reps, max angles reached, and dates.
-- **Services**: Automated seeding utilities, OTP mailers, and auth controllers.
+- **Services**: Automated seeding utilities, password-based authentication controllers (with legacy OTP code boundaries preserved).
 
 ### 👁️ 3. Computer Vision Service (`cv-service`)
 - **Core Framework**: Python and Flask.
