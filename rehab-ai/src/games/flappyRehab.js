@@ -13,7 +13,7 @@ export const init = () => ({
 });
 
 export const draw = (ctx, canvas, state, params) => {
-  const { video, liveAngleVal, currentExercise, speakText, repsRef, setReps } = params;
+  const { video, liveAngleVal, currentExercise, speakText, repsRef, setReps, isPostureInvalid } = params;
 
   // Set default dynamic parameters if not initialized
   if (state.scrollSpeed === undefined) state.scrollSpeed = 0.8;
@@ -148,43 +148,52 @@ export const draw = (ctx, canvas, state, params) => {
     if (!gate.passed && gate.x + 50 < px) {
       gate.passed = true;
       if (!gate.hit) {
-        // Increment combo
-        state.comboCount = (state.comboCount || 0) + 1;
-        // Update multiplier
-        if (state.comboCount >= 9) {
-          state.multiplier = 4;
-        } else if (state.comboCount >= 6) {
-          state.multiplier = 3;
-        } else if (state.comboCount >= 3) {
-          state.multiplier = 2;
-        } else {
+        if (isPostureInvalid) {
+          // Enforce form check: mark as hit, break combo, no points/reps
+          gate.hit = true;
+          state.comboCount = 0;
           state.multiplier = 1;
-        }
-
-        // Increase gamified points
-        state.gamePoints = (state.gamePoints || 0) + 10 * state.multiplier;
-
-        // Adaptive difficulty: challenge the user (faster speed, narrower gap)
-        state.scrollSpeed = Math.min(1.4, state.scrollSpeed + 0.05);
-        state.currentGap = Math.max(140, state.currentGap - 3);
-
-        if (currentExercise.holdTime > 0) {
-          // Hold mode: 1 gate = 1 hold/rep point
-          state.flappyScore += 1;
-          repsRef.current += 1;
-          setReps(repsRef.current);
-          speakText(state.multiplier > 1 ? `Combo ${state.multiplier}x!` : "Good hold!");
+          state.consecutivePasses = 0;
+          speakText("Form fault!");
         } else {
-          // Rep mode: Alternating clean passes: requires passing 2 gates (flexion + extension) for 1 rep
-          state.consecutivePasses = (state.consecutivePasses || 0) + 1;
-          if (state.consecutivePasses === 2) {
+          // Increment combo
+          state.comboCount = (state.comboCount || 0) + 1;
+          // Update multiplier
+          if (state.comboCount >= 9) {
+            state.multiplier = 4;
+          } else if (state.comboCount >= 6) {
+            state.multiplier = 3;
+          } else if (state.comboCount >= 3) {
+            state.multiplier = 2;
+          } else {
+            state.multiplier = 1;
+          }
+
+          // Increase gamified points
+          state.gamePoints = (state.gamePoints || 0) + 10 * state.multiplier;
+
+          // Adaptive difficulty: challenge the user (faster speed, narrower gap)
+          state.scrollSpeed = Math.min(1.4, state.scrollSpeed + 0.05);
+          state.currentGap = Math.max(140, state.currentGap - 3);
+
+          if (currentExercise.holdTime > 0) {
+            // Hold mode: 1 gate = 1 hold/rep point
             state.flappyScore += 1;
             repsRef.current += 1;
             setReps(repsRef.current);
-            state.consecutivePasses = 0;
-            speakText(state.multiplier > 1 ? `Combo ${state.multiplier}x!` : "Good repetition!");
+            speakText(state.multiplier > 1 ? `Combo ${state.multiplier}x!` : "Good hold!");
           } else {
-            speakText(state.multiplier > 1 ? "Combo!" : "Keep going!");
+            // Rep mode: Alternating clean passes: requires passing 2 gates (flexion + extension) for 1 rep
+            state.consecutivePasses = (state.consecutivePasses || 0) + 1;
+            if (state.consecutivePasses === 2) {
+              state.flappyScore += 1;
+              repsRef.current += 1;
+              setReps(repsRef.current);
+              state.consecutivePasses = 0;
+              speakText(state.multiplier > 1 ? `Combo ${state.multiplier}x!` : "Good repetition!");
+            } else {
+              speakText(state.multiplier > 1 ? "Combo!" : "Keep going!");
+            }
           }
         }
       } else {

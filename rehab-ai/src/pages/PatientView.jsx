@@ -651,6 +651,14 @@ export default function PatientView() {
             if (isPostureInvalid) {
               isSuccessZone = false; // Block target angle matches if posture is incorrect
               speakPostureAlert(postureAlert);
+
+              // Reset hold progress if posture becomes invalid during hold
+              holdStartRef.current = null;
+              setIsHolding(false);
+              setHoldTimeLeft(currentExercise.holdTime || 0);
+              if (gameStateRef.current) {
+                gameStateRef.current.bloomPercentage = 0;
+              }
             }
 
             // Rep and Hold Time logic
@@ -761,7 +769,8 @@ export default function PatientView() {
               currentExercise,
               speakText,
               repsRef,
-              setReps
+              setReps,
+              isPostureInvalid
             });
           }
           
