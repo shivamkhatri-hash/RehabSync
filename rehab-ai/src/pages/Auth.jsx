@@ -50,7 +50,7 @@ export default function Auth() {
       
       if (data.requiresOtp) {
         setStep(2);
-        alert('🔑 One-Time Passcode (OTP) sent to your email. Please enter it below to verify.');
+        alert('🔑 First-time verification code (OTP) sent to your email. Please enter it below.');
       } else {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -117,12 +117,12 @@ export default function Auth() {
             </form>
           )}
 
-          {/* LOGIN VIEW: STEP 2 (OTP VERIFICATION) */}
+          {/* LOGIN VIEW: STEP 2 (FIRST-TIME OTP VERIFICATION) */}
           {view === 'login' && step === 2 && (
             <form onSubmit={verifyOtp} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-teal-600 font-extrabold text-xs uppercase tracking-wider">Verification Code (OTP)</label>
-                <p className="text-xs text-slate-500 mt-1 mb-3">Please enter the 6-digit verification code sent to <strong>{email}</strong>.</p>
+                <label className="block text-sm font-medium text-teal-600 font-extrabold text-xs uppercase tracking-wider">First-Time Email Verification (OTP)</label>
+                <p className="text-xs text-slate-500 mt-1 mb-3">Please enter the 6-digit verification code sent to <strong>{email}</strong> to activate your account.</p>
                 <div className="mt-1">
                   <input 
                     type="text" 
@@ -137,7 +137,7 @@ export default function Auth() {
               </div>
 
               <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none">
-                Verify & Login
+                Verify & Continue
               </button>
               
               <button 

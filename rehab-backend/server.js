@@ -35,6 +35,7 @@ const userSchema = new mongoose.Schema({
   assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   focusArea: { type: String, default: 'general' },
   password: { type: String, default: null }, // Added password field
+  isVerified: { type: Boolean, default: false }, // OTP verified on first login
   otp: { type: String, default: null },
   otpExpires: { type: Date, default: null }
 });
@@ -358,7 +359,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Step 2: Login - Password authentication with OTP for patients
+// Step 2: Login - Password authentication with first-time OTP verification
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -370,8 +371,8 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid password' });
     }
 
-    if (user.role === 'patient') {
-      // Patients require OTP verification!
+    // Only require OTP on FIRST TIME login for unverified patients
+    if (user.role === 'patient' && !user.isVerified) {
       const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
       user.otp = generatedOtp;
       user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
@@ -382,19 +383,19 @@ app.post('/api/auth/login', async (req, res) => {
         await transporter.sendMail({
           from: process.env.EMAIL_USER,
           to: email,
-          subject: 'PoseCare - Login Code',
-          html: `<p>Your secure login code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
+          subject: 'PoseCare - First-Time Login Verification Code',
+          html: `<p>Your first-time verification code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
         });
-        console.log(`📨 Sent OTP ${generatedOtp} to ${email}`);
+        console.log(`📨 Sent first-time OTP ${generatedOtp} to ${email}`);
       } catch (mailErr) {
         console.warn(`⚠️ Nodemailer failed to send email. Displaying OTP in console:`);
-        console.log(`🔑 [OTP for ${email}]: ${generatedOtp}`);
+        console.log(`🔑 [First-Time OTP for ${email}]: ${generatedOtp}`);
       }
 
       return res.json({ requiresOtp: true, email: user.email });
     }
 
-    // Doctors bypass OTP and log in directly
+    // Doctors and already verified patients log in directly with password
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET || 'hackathon_secret',
@@ -410,7 +411,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Step 3: Verify OTP
+// Step 3: Verify OTP (First-Time Verification)
 app.post('/api/auth/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -420,6 +421,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     if (!user.otp || user.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
     if (new Date() > user.otpExpires) return res.status(400).json({ message: 'OTP has expired' });
 
+    user.isVerified = true;
     user.otp = null;
     user.otpExpires = null;
     await user.save();
