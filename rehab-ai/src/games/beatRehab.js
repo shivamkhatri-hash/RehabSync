@@ -1,9 +1,7 @@
 /**
- * BeatRehab — Ultimate Synthwave Rhythm & Slicing Arcade
- * Inspired by Beat Saber / Synth Riders
- * 
- * Full 3D Air Trajectory, Multi-Lane & Multi-Height Floating Cubes,
- * Angle-Tilting Dual Light Blades, Shockwave Splitting FX, and Visualizer Equalizers.
+ * BeatRehab — Side-Scrolling Rhythm & Slicing Arcade (Flappy / Side-Runner Dimension)
+ * Left-to-Right gameplay where rhythm notes scroll from Right to Left,
+ * and the player's joint elevation controls the Neon Cyber Slicer blade!
  */
 
 export const init = () => ({
@@ -11,25 +9,28 @@ export const init = () => ({
   score: 0,
   combo: 0,
   multiplier: 1,
-  notes: [], // Array of incoming rhythm blocks
+  playerY: 240,
+  targetY: 240,
+  bladeAngle: 0,
+  slashAnim: 0, // Slash arc animation trigger
+  notes: [], // Array of incoming rhythm notes { id, x, y, targetRom, type, color, sliced }
   particles: [], // Spark bursts
-  slices: [], // Flying split cube halves
-  rings: [], // Expanding impact shockwave rings
+  slices: [], // Flying split halves
+  rings: [], // Expanding shockwave rings
   floatTexts: [], // Floating score indicators
   lastAngle: 0,
   lastAngleTime: Date.now(),
   angularVelocity: 0,
   speedWarning: false,
-  bladeAngle: 0,
   totalNotesSliced: 0,
   perfectCount: 0,
-  lastSpawnedHeight: 'high'
+  bgScroll: 0
 });
 
 export const draw = (ctx, canvas, state, params) => {
   const { liveAngleVal, currentExercise, speakText, repsRef, setReps, isPostureInvalid } = params;
 
-  // Initialize collections if needed
+  // Initialize collections
   if (!state.notes) state.notes = [];
   if (!state.particles) state.particles = [];
   if (!state.slices) state.slices = [];
@@ -38,8 +39,10 @@ export const draw = (ctx, canvas, state, params) => {
   if (state.score === undefined) state.score = 0;
   if (state.combo === undefined) state.combo = 0;
   if (state.multiplier === undefined) state.multiplier = 1;
+  if (state.playerY === undefined) state.playerY = canvas.height / 2;
 
   state.frameIndex += 1;
+  state.bgScroll = (state.bgScroll + 2.5) % canvas.width;
   const now = Date.now();
 
   // 1. Angular Velocity Calculation (Speed Penalty)
@@ -48,9 +51,9 @@ export const draw = (ctx, canvas, state, params) => {
     const rawVel = Math.abs(liveAngleVal - state.lastAngle) / dt;
     state.angularVelocity = (state.angularVelocity || 0) * 0.75 + rawVel * 0.25;
     
-    // Smooth blade tilt according to movement direction
+    // Blade tilt proportional to vertical movement direction
     const angleDelta = liveAngleVal - state.lastAngle;
-    state.bladeAngle = (state.bladeAngle || 0) * 0.8 + (angleDelta * 0.04);
+    state.bladeAngle = (state.bladeAngle || 0) * 0.8 + (angleDelta * 0.06);
     state.lastAngle = liveAngleVal;
     state.lastAngleTime = now;
   }
@@ -58,152 +61,128 @@ export const draw = (ctx, canvas, state, params) => {
   const isTooFast = (state.angularVelocity || 0) > 220;
   state.speedWarning = isTooFast;
 
-  // 2. Normalization of Player Angle & Saber Elevation Across Screen
+  // 2. Normalization of Player Angle to Vertical Y Position (Side-Scrolling)
   const successAng = currentExercise?.successAngle || 90;
   const failAng = currentExercise?.failureAngle || 160;
   const curAngle = liveAngleVal !== undefined ? liveAngleVal : (successAng + failAng) / 2;
   
-  // Normalized 0.0 (rest/bottom) to 1.0 (peak stretch/top)
+  // Normalized 0.0 (rest / bottom) to 1.0 (target / top)
   let normalizedRom = (curAngle - failAng) / (successAng - failAng);
   normalizedRom = Math.max(0, Math.min(1, normalizedRom));
 
-  // Saber blade vertical range across screen: 100px (top sky) to 420px (bottom ground)
-  const hitZoneZ = 0.88; // Progress along 3D track where hit occurs
-  const minBladeY = canvas.height * 0.88; // Bottom ground position
-  const maxBladeY = canvas.height * 0.22; // High sky position
-  const currentBladeY = minBladeY - normalizedRom * (minBladeY - maxBladeY);
+  // Player vertical bounds: 65px (top sky) to canvas.height - 65px (bottom ground)
+  const minY = 65;
+  const maxY = canvas.height - 65;
+  const targetPlayerY = maxY - normalizedRom * (maxY - minY);
+  // Smooth spring follow
+  state.playerY += (targetPlayerY - state.playerY) * 0.18;
 
-  // 3. Render Cyberpunk Synthwave Stage & Sky
+  const playerX = 140; // Fixed horizontal position on left side
+
+  // 3. Render Side-Scrolling Cyberpunk Synthwave Background
   const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  bgGrad.addColorStop(0, '#060012');
-  bgGrad.addColorStop(0.4, '#1b033d');
-  bgGrad.addColorStop(0.75, '#29064a');
-  bgGrad.addColorStop(1, '#050010');
+  bgGrad.addColorStop(0, '#040010');
+  bgGrad.addColorStop(0.5, '#12022b');
+  bgGrad.addColorStop(1, '#060014');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Glowing Horizon Sun
-  const sunCenterY = canvas.height * 0.42;
-  const sunGrad = ctx.createRadialGradient(
-    canvas.width / 2, sunCenterY, 15,
-    canvas.width / 2, sunCenterY, 160
-  );
-  sunGrad.addColorStop(0, '#ff0077');
-  sunGrad.addColorStop(0.5, '#ff8800');
-  sunGrad.addColorStop(0.85, '#ff00aa33');
-  sunGrad.addColorStop(1, 'transparent');
-  ctx.fillStyle = sunGrad;
-  ctx.beginPath();
-  ctx.arc(canvas.width / 2, sunCenterY, 160, Math.PI, 0);
-  ctx.fill();
+  // Parallax Synthwave City Skyline in background
+  ctx.fillStyle = '#1e0842';
+  const buildingW = 45;
+  for (let i = -1; i < Math.ceil(canvas.width / buildingW) + 2; i++) {
+    const bx = i * buildingW - (state.bgScroll * 0.4) % buildingW;
+    const bHeight = 70 + Math.sin(i * 99) * 45;
+    ctx.fillRect(bx, canvas.height - bHeight - 30, buildingW - 4, bHeight + 30);
 
-  // Horizontal Sun Blinds / Laser Stripes
-  ctx.fillStyle = '#060012';
-  for (let i = 0; i < 7; i++) {
-    const blindY = sunCenterY - 10 - i * 16;
-    const blindH = 2 + i * 1.5;
-    ctx.fillRect(canvas.width / 2 - 160, blindY, 320, blindH);
+    // Glowing window lights
+    ctx.fillStyle = '#ff007f33';
+    ctx.fillRect(bx + 6, canvas.height - bHeight - 15, 6, 8);
+    ctx.fillStyle = '#00f0ff33';
+    ctx.fillRect(bx + 18, canvas.height - bHeight - 15, 6, 8);
+    ctx.fillStyle = '#1e0842';
   }
 
-  // 3D Perspective Road & Highway
-  const vpX = canvas.width / 2;
-  const horizonY = sunCenterY;
-  const bottomY = canvas.height;
+  // Scrolling Neon Ground & Ceiling Laser Rails
+  ctx.strokeStyle = '#00f0ff66';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#00f0ff';
+  ctx.shadowBlur = 10;
+  
+  // Top Rail
+  ctx.beginPath();
+  ctx.moveTo(0, 40);
+  ctx.lineTo(canvas.width, 40);
+  ctx.stroke();
 
-  // Lateral perspective highway lines
-  ctx.lineWidth = 1.5;
-  const roadLanes = [-320, -200, -90, 0, 90, 200, 320];
-  for (let offset of roadLanes) {
-    ctx.strokeStyle = offset === 0 ? 'rgba(6, 182, 212, 0.4)' : 'rgba(168, 85, 247, 0.25)';
+  // Bottom Rail
+  ctx.strokeStyle = '#ff007f66';
+  ctx.shadowColor = '#ff007f';
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - 40);
+  ctx.lineTo(canvas.width, canvas.height - 40);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Horizontal Grid Lines with side scrolling motion
+  ctx.strokeStyle = 'rgba(168, 85, 247, 0.12)';
+  ctx.lineWidth = 1;
+  for (let y = 60; y < canvas.height - 40; y += 30) {
     ctx.beginPath();
-    ctx.moveTo(vpX, horizonY);
-    ctx.lineTo(vpX + offset * 2.4, bottomY);
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+  const vertScroll = state.bgScroll % 40;
+  for (let x = -vertScroll; x < canvas.width; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 40);
+    ctx.lineTo(x, canvas.height - 40);
     ctx.stroke();
   }
 
-  // Grid scrolling lines
-  const gridScroll = (state.frameIndex * 3.5) % 40;
-  for (let y = horizonY; y < bottomY; y += 20) {
-    const progress = (y - horizonY) / (bottomY - horizonY);
-    const scrollY = horizonY + Math.pow(progress, 1.7) * (bottomY - horizonY) + gridScroll * progress;
-    if (scrollY <= bottomY) {
-      ctx.strokeStyle = `rgba(217, 70, 239, ${0.1 + progress * 0.45})`;
-      ctx.beginPath();
-      ctx.moveTo(0, scrollY);
-      ctx.lineTo(canvas.width, scrollY);
-      ctx.stroke();
-    }
-  }
-
-  // Flanking Audio Equalizer Bars (Left & Right)
-  for (let i = 0; i < 14; i++) {
-    const eqH = Math.sin((state.frameIndex * 0.15) + i * 0.6) * 35 + 40;
-    
-    // Left Equalizer
-    const leftGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    leftGrad.addColorStop(0, '#06b6d4');
-    leftGrad.addColorStop(1, '#a855f7');
-    ctx.fillStyle = leftGrad;
-    ctx.fillRect(15 + i * 7, canvas.height * 0.65 - eqH, 4, eqH);
-
-    // Right Equalizer
-    const rightGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    rightGrad.addColorStop(0, '#ec4899');
-    rightGrad.addColorStop(1, '#f59e0b');
-    ctx.fillStyle = rightGrad;
-    ctx.fillRect(canvas.width - 25 - i * 7, canvas.height * 0.65 - eqH, 4, eqH);
-  }
-
-  // 4. Spawn Dynamic Floating Rhythm Notes at Varied Heights & Lanes
-  // Spawns every 60 frames (~1.0 sec)
-  if (state.frameIndex % 65 === 0) {
-    // Alternate through High Peak (0.95), Upper Mid (0.7), Lower Mid (0.35), Low Stretch (0.1)
-    const heightPatterns = [0.92, 0.35, 0.85, 0.20, 0.75, 0.95];
+  // 4. Spawn Rhythm Notes Scrolling from Right to Left
+  // Spawn every 60 frames (~1.0s at 60fps)
+  if (state.frameIndex % 60 === 0) {
+    const heightPatterns = [0.92, 0.25, 0.85, 0.40, 0.70, 0.95];
     const targetRomVal = heightPatterns[state.notes.length % heightPatterns.length];
-    
-    // Lanes: -1 (Left), 0 (Center), 1 (Right)
-    const laneX = ((state.notes.length % 3) - 1) * 110;
-    const isSpecialStar = targetRomVal > 0.9 && (state.notes.length % 4 === 0);
+    const isSpecialStar = targetRomVal > 0.9 && (state.notes.length % 3 === 0);
+
+    const noteY = maxY - targetRomVal * (maxY - minY);
 
     state.notes.push({
       id: state.frameIndex,
-      progress: 0, // 0 (far horizon) to 1.1 (past screen)
+      x: canvas.width + 40, // Spawn offscreen on the right
+      y: noteY,
       targetRom: targetRomVal,
-      laneX: laneX,
-      color: isSpecialStar ? '#fbbf24' : (targetRomVal > 0.6 ? '#00f0ff' : '#ff007f'),
       type: isSpecialStar ? 'STAR' : 'CUBE',
+      color: isSpecialStar ? '#fbbf24' : (targetRomVal > 0.6 ? '#00f0ff' : '#ff007f'),
+      speed: 4.8, // Speed scrolling from Right to Left
       sliced: false,
-      rotation: Math.random() * Math.PI * 2
+      rotation: 0
     });
   }
 
-  // 5. Update & Draw Incoming Floating Rhythm Notes
+  // 5. Update & Draw Incoming Rhythm Notes
   const activeNotes = [];
 
   for (let note of state.notes) {
-    note.progress += 0.016; // Incoming flight speed
-    note.rotation += 0.03;
+    note.x -= note.speed; // Move from Right to Left
+    note.rotation += 0.04;
 
-    // 3D Perspective Scaling & Positioning
-    const scale = 0.2 + Math.pow(note.progress, 2.2) * 1.4;
-    
-    // Note Target Screen Y (interpolated from horizon at start to true height at hit line)
-    const finalY = minBladeY - note.targetRom * (minBladeY - maxBladeY);
-    const startY = horizonY - 20;
-    const noteY = startY + (finalY - startY) * Math.pow(note.progress, 1.2);
-    const noteX = vpX + note.laneX * scale;
+    // Check Slicing Collision when note reaches Player's X corridor (x between playerX - 35 and playerX + 35)
+    if (!note.sliced && note.x >= playerX - 40 && note.x <= playerX + 40) {
+      const yDistance = Math.abs(state.playerY - note.y);
 
-    // Hit Detection when note reaches slice zone (progress around 0.84 to 0.94)
-    if (!note.sliced && note.progress >= 0.82 && note.progress <= 0.94) {
-      const romDiff = Math.abs(normalizedRom - note.targetRom);
-
-      // Successful Hit threshold
-      if (romDiff < 0.20 && !isPostureInvalid) {
+      // Hit threshold: Player's blade is within 42px vertically of the incoming note
+      if (yDistance < 45 && !isPostureInvalid) {
         note.sliced = true;
-        const isPerfect = romDiff < 0.07;
+        state.slashAnim = 12; // Trigger blade slash animation trail
+        
+        const isPerfect = yDistance < 18;
         const basePts = note.type === 'STAR' ? 350 : (isPerfect ? 250 : 100);
         
-        // Speed Penalty logic
+        // Speed penalty multiplier
         const speedPenalty = isTooFast ? 0.5 : 1.0;
         const awardedPoints = Math.round(basePts * state.multiplier * speedPenalty);
 
@@ -212,35 +191,35 @@ export const draw = (ctx, canvas, state, params) => {
         state.totalNotesSliced += 1;
         if (isPerfect) state.perfectCount += 1;
 
-        // Upgrade Multiplier
+        // Combo Multipliers
         if (state.combo >= 20) state.multiplier = 4;
         else if (state.combo >= 10) state.multiplier = 3;
         else if (state.combo >= 5) state.multiplier = 2;
         else state.multiplier = 1;
 
-        // Add Flying Split Cube Halves
+        // Flying Split Halves (Fling Up-Left and Down-Left)
         state.slices.push(
-          { x: noteX, y: noteY, vx: -6, vy: -4, rot: 0, vRot: -0.15, color: note.color, alpha: 1, scale },
-          { x: noteX, y: noteY, vx: 6, vy: -3, rot: 0, vRot: 0.15, color: note.color, alpha: 1, scale }
+          { x: note.x, y: note.y, vx: -5, vy: -5, rot: 0, vRot: -0.2, color: note.color, alpha: 1 },
+          { x: note.x, y: note.y, vx: -3, vy: 5, rot: 0, vRot: 0.2, color: note.color, alpha: 1 }
         );
 
-        // Add Expanding Shockwave Ring
+        // Expanding Shockwave Ring
         state.rings.push({
-          x: noteX,
-          y: noteY,
-          radius: 10,
+          x: note.x,
+          y: note.y,
+          radius: 12,
           color: note.color,
           alpha: 1
         });
 
-        // Add Particle Sparks
+        // Spark Particle Burst
         for (let i = 0; i < 22; i++) {
           const angle = Math.random() * Math.PI * 2;
           const spd = Math.random() * 8 + 3;
           state.particles.push({
-            x: noteX,
-            y: noteY,
-            vx: Math.cos(angle) * spd,
+            x: note.x,
+            y: note.y,
+            vx: Math.cos(angle) * spd - 2,
             vy: Math.sin(angle) * spd,
             color: note.color,
             alpha: 1,
@@ -248,18 +227,18 @@ export const draw = (ctx, canvas, state, params) => {
           });
         }
 
-        // Floating Text Popup
+        // Floating Score Indicator
         state.floatTexts.push({
-          x: noteX,
-          y: noteY - 20,
+          x: note.x,
+          y: note.y - 25,
           text: isTooFast 
             ? `⚠️ SLOW DOWN! +${awardedPoints}` 
-            : isPerfect ? `⚡ PERFECT! +${awardedPoints}` : `✨ SLICE! +${awardedPoints}`,
+            : isPerfect ? `⚡ PERFECT SLICE! +${awardedPoints}` : `✨ SLICE! +${awardedPoints}`,
           color: isTooFast ? '#f59e0b' : (isPerfect ? '#00f0ff' : '#ff007f'),
           alpha: 1
         });
 
-        // Log clinical rep every 2 completed high/low slice transitions
+        // Count clinical repetition every 2 successful rhythm slices
         if (state.totalNotesSliced % 2 === 0) {
           if (repsRef && setReps) {
             repsRef.current += 1;
@@ -270,17 +249,17 @@ export const draw = (ctx, canvas, state, params) => {
       }
     }
 
-    // Missed Note Reset
-    if (!note.sliced && note.progress > 0.98) {
+    // Missed Note (Passed by player without being sliced)
+    if (!note.sliced && note.x < playerX - 50) {
       state.combo = 0;
       state.multiplier = 1;
     }
 
-    // Render Note (Floating 3D Cube / Star)
-    if (note.progress <= 1.05 && !note.sliced) {
+    // Draw Note if on screen
+    if (note.x > -50 && !note.sliced) {
       ctx.save();
-      ctx.translate(noteX, noteY);
-      ctx.scale(scale, scale);
+      ctx.translate(note.x, note.y);
+      ctx.rotate(note.rotation);
 
       ctx.shadowColor = note.color;
       ctx.shadowBlur = 20;
@@ -299,9 +278,9 @@ export const draw = (ctx, canvas, state, params) => {
       ctx.roundRect(-size / 3, -size / 3, (size * 2) / 3, (size * 2) / 3, 4);
       ctx.fill();
 
-      // Directional Slice Icon (Up arrow for high notes, Down arrow for low notes)
+      // Direction Arrow inside
       ctx.fillStyle = '#0f172a';
-      ctx.font = '900 14px system-ui';
+      ctx.font = '900 13px system-ui';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(note.targetRom > 0.6 ? '▲' : '▼', 0, 1);
@@ -312,7 +291,7 @@ export const draw = (ctx, canvas, state, params) => {
   }
   state.notes = activeNotes;
 
-  // 6. Draw Split Flying Cube Halves
+  // 6. Draw Split Flying Halves
   const activeSlices = [];
   for (let s of state.slices) {
     s.x += s.vx;
@@ -325,7 +304,6 @@ export const draw = (ctx, canvas, state, params) => {
       ctx.save();
       ctx.translate(s.x, s.y);
       ctx.rotate(s.rot);
-      ctx.scale(s.scale, s.scale);
       ctx.globalAlpha = Math.max(0, s.alpha);
 
       ctx.fillStyle = s.color;
@@ -400,94 +378,107 @@ export const draw = (ctx, canvas, state, params) => {
   }
   state.floatTexts = activeFloatTexts;
 
-  // 10. Draw Slice Hit Line Corridor in 3D Space
-  const hitLineY = canvas.height * 0.82;
+  // 10. Draw Slice Target Guide Line on Left Side
   ctx.strokeStyle = isPostureInvalid ? '#ef4444' : 'rgba(0, 240, 255, 0.4)';
   ctx.lineWidth = 2;
-  ctx.setLineDash([8, 8]);
+  ctx.setLineDash([6, 6]);
   ctx.beginPath();
-  ctx.moveTo(vpX - 260, hitLineY);
-  ctx.lineTo(vpX + 260, hitLineY);
+  ctx.moveTo(playerX, 40);
+  ctx.lineTo(playerX, canvas.height - 40);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 11. Draw Player's Dynamic Dual-Energy Light Saber (Follows Full ROM Elevation)
-  const bladeX = vpX;
-  const bladeWidth = 320;
+  // 11. Draw Player's Side-Scrolling Neon Cyber Blade Avatar
+  const bladeY = state.playerY;
   const saberTilt = state.bladeAngle || 0;
   const saberColor = isPostureInvalid ? '#ef4444' : isTooFast ? '#f59e0b' : '#00f0ff';
 
+  // Slash Arc Trail if recently sliced
+  if (state.slashAnim > 0) {
+    state.slashAnim -= 1;
+    ctx.save();
+    ctx.strokeStyle = '#00f0ff';
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 25;
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.arc(playerX, bladeY, 60, -Math.PI * 0.4, Math.PI * 0.4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.save();
-  ctx.translate(bladeX, currentBladeY);
+  ctx.translate(playerX, bladeY);
   ctx.rotate(saberTilt);
 
-  // Outer Neon Saber Glow
+  // Outer Glowing Light Blade (Points forward towards incoming notes)
   ctx.shadowColor = saberColor;
-  ctx.shadowBlur = 30;
+  ctx.shadowBlur = 25;
   ctx.strokeStyle = saberColor;
-  ctx.lineWidth = 10;
+  ctx.lineWidth = 8;
   ctx.lineCap = 'round';
+  
+  // Forward-extending Beam
   ctx.beginPath();
-  ctx.moveTo(-bladeWidth / 2, 0);
-  ctx.lineTo(bladeWidth / 2, 0);
+  ctx.moveTo(-35, 0);
+  ctx.lineTo(55, 0);
   ctx.stroke();
 
-  // Core Pure White Laser Beam
+  // White Core Laser
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(-bladeWidth / 2 + 15, 0);
-  ctx.lineTo(bladeWidth / 2 - 15, 0);
+  ctx.moveTo(-25, 0);
+  ctx.lineTo(48, 0);
   ctx.stroke();
 
-  // Saber Center Emitter Grip
+  // Cyber Handle Emitter Grip
   ctx.fillStyle = '#0f172a';
   ctx.strokeStyle = saberColor;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(-24, -8, 48, 16, 6);
+  ctx.roundRect(-42, -10, 26, 20, 5);
   ctx.fill();
   ctx.stroke();
 
-  // Left & Right Blade Tip Energy Orbs
+  // Glowing Blade Tip Energy Spark
   ctx.fillStyle = '#ff007f';
   ctx.beginPath();
-  ctx.arc(-bladeWidth / 2, 0, 8, 0, Math.PI * 2);
-  ctx.arc(bladeWidth / 2, 0, 8, 0, Math.PI * 2);
+  ctx.arc(55, 0, 7, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
 
-  // 12. Futuristic Top HUD Display
-  // Top Left: Score & Multiplier
+  // 12. Top HUD Information
+  // Top Left: Score & Combo
   ctx.fillStyle = '#ffffff';
   ctx.font = '900 24px system-ui, sans-serif';
-  ctx.fillText(`SCORE ${state.score}`, 30, 45);
+  ctx.fillText(`SCORE ${state.score}`, 30, 30);
 
   if (state.combo > 1) {
     ctx.fillStyle = '#ff007f';
-    ctx.font = '900 15px system-ui, sans-serif';
-    ctx.fillText(`COMBO x${state.combo} • ${state.multiplier}x MULTIPLIER`, 30, 72);
+    ctx.font = '900 14px system-ui, sans-serif';
+    ctx.fillText(`COMBO x${state.combo} • ${state.multiplier}x BOOST`, 30, 52);
   }
 
-  // Top Right: Live Biomechanical Angle & Elevation Meter
+  // Top Right: Live Angle & Target Height
   ctx.textAlign = 'right';
   ctx.fillStyle = '#00f0ff';
   ctx.font = '900 22px system-ui, sans-serif';
-  ctx.fillText(`${Math.round(curAngle)}°`, canvas.width - 30, 45);
+  ctx.fillText(`${Math.round(curAngle)}°`, canvas.width - 30, 30);
 
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '700 12px system-ui, sans-serif';
-  ctx.fillText(`Target: ${successAng}° • Rest: ${failAng}°`, canvas.width - 30, 68);
+  ctx.fillText(`Target: ${successAng}° • Rest: ${failAng}°`, canvas.width - 30, 52);
   ctx.textAlign = 'left';
 
-  // Bottom Alerts (Speed & Posture)
+  // Bottom Status Alerts
   if (isTooFast) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = '#f59e0b';
     ctx.font = '900 13px system-ui, sans-serif';
-    ctx.fillText('⚠️ SPEED PENALTY ACTIVE: Slow down for full eccentric score!', vpX, canvas.height - 20);
+    ctx.fillText('⚠️ SPEED PENALTY ACTIVE: Move smoothly to earn full score!', canvas.width / 2, canvas.height - 15);
     ctx.restore();
   }
 
@@ -496,7 +487,7 @@ export const draw = (ctx, canvas, state, params) => {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ef4444';
     ctx.font = '900 14px system-ui, sans-serif';
-    ctx.fillText('🚫 POSTURE COMPENSATION DETECTED: Straighten form to slice!', vpX, canvas.height - 40);
+    ctx.fillText('🚫 POSTURE FAULT: Straighten posture to slice incoming notes!', canvas.width / 2, canvas.height - 30);
     ctx.restore();
   }
 };
