@@ -107,6 +107,20 @@ const sessionSchema = new mongoose.Schema({
 });
 const SessionLog = mongoose.model('SessionLog', sessionSchema);
 
+// Appointment Schema for Doctor Scheduling
+const appointmentSchema = new mongoose.Schema({
+  doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  patientName: { type: String, required: true },
+  date: { type: String, required: true }, // Format: YYYY-MM-DD
+  time: { type: String, required: true }, // e.g. "09:00 AM"
+  type: { type: String, default: 'Rehabilitation Review' },
+  duration: { type: String, default: '30 mins' },
+  status: { type: String, enum: ['Pending', 'Confirmed', 'Completed', 'Cancelled'], default: 'Confirmed' },
+  notes: { type: String, default: '' }
+}, { timestamps: true });
+const Appointment = mongoose.model('Appointment', appointmentSchema);
+
 // Auto-seed exercises and test users
 const seedDatabase = async () => {
   const exercises = [
@@ -350,6 +364,48 @@ const seedDatabase = async () => {
       ];
       await SessionLog.insertMany(mockSessions);
       console.log('🌱 Seeded mock session logs for John Doe');
+    }
+  }
+
+  // Seed sample appointments for test doctor
+  if (testDoctor) {
+    const existingAppts = await Appointment.findOne({ doctorId: testDoctor._id });
+    if (!existingAppts) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const appts = [
+        {
+          doctorId: testDoctor._id,
+          patientName: 'Jane Doe',
+          date: todayStr,
+          time: '09:00 AM',
+          type: 'Upper Body Review',
+          duration: '30 mins',
+          status: 'Completed',
+          notes: 'Reviewed shoulder flexion range. Progressing well.'
+        },
+        {
+          doctorId: testDoctor._id,
+          patientName: 'Shivam',
+          date: todayStr,
+          time: '11:30 AM',
+          type: 'Biceps Curl Evaluation',
+          duration: '45 mins',
+          status: 'Confirmed',
+          notes: 'Assess elbow extension mobility and prescribe 15 reps.'
+        },
+        {
+          doctorId: testDoctor._id,
+          patientName: 'Vaibhav Mamgain',
+          date: todayStr,
+          time: '03:00 PM',
+          type: 'Initial Consultation',
+          duration: '60 mins',
+          status: 'Pending',
+          notes: 'New patient intake for knee joint rehab.'
+        }
+      ];
+      await Appointment.insertMany(appts);
+      console.log('🌱 Seeded sample appointments for test doctor');
     }
   }
 };
@@ -699,6 +755,110 @@ app.put('/api/users/patients/:patientId/assign', async (req, res) => {
       { new: true }
     );
     res.json(patient);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Doctor registers a new patient directly
+app.post('/api/users/patients', async (req, res) => {
+  try {
+    const { name, email, focusArea, doctorId, password } = req.body;
+    let existing = await User.findOne({ email });
+    if (existing) {
+      // If already exists, assign to this doctor if not already assigned
+      existing.assignedDoctorId = doctorId || existing.assignedDoctorId;
+      await existing.save();
+      return res.json({ message: 'Patient linked to your clinic', patient: existing });
+    }
+
+    const hashedPassword = await bcrypt.hash(password || 'password123', 10);
+    const newPatient = new User({
+      name,
+      email,
+      role: 'patient',
+      focusArea: focusArea || 'general',
+      assignedDoctorId: doctorId || null,
+      password: hashedPassword,
+      isVerified: true
+    });
+    await newPatient.save();
+    res.status(201).json({ message: 'Patient registered and added to roster', patient: newPatient });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Doctor profile & preferences
+app.put('/api/users/:userId/profile', async (req, res) => {
+  try {
+    const { name, focusArea } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.params.userId,
+      { name, focusArea },
+      { new: true }
+    ).select('-password');
+    res.json({ message: 'Profile updated successfully', user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- APPOINTMENT ENDPOINTS ---
+
+// Fetch all appointments for a doctor
+app.get('/api/appointments/doctor/:doctorId', async (req, res) => {
+  try {
+    const appointments = await Appointment.find({ doctorId: req.params.doctorId }).sort({ date: 1, time: 1 });
+    res.json(appointments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create a new appointment
+app.post('/api/appointments', async (req, res) => {
+  try {
+    const { doctorId, patientId, patientName, date, time, type, duration, notes, status } = req.body;
+    const appt = new Appointment({
+      doctorId,
+      patientId: patientId || null,
+      patientName,
+      date,
+      time,
+      type: type || 'Rehabilitation Review',
+      duration: duration || '30 mins',
+      status: status || 'Confirmed',
+      notes: notes || ''
+    });
+    const saved = await appt.save();
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update appointment status
+app.put('/api/appointments/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const appt = await Appointment.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!appt) return res.status(404).json({ message: 'Appointment not found' });
+    res.json(appt);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete appointment
+app.delete('/api/appointments/:id', async (req, res) => {
+  try {
+    await Appointment.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Appointment removed' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
