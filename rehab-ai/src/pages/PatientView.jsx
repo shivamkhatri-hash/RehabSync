@@ -386,6 +386,14 @@ export default function PatientView() {
   const [activeTab, setActiveTab] = useState('home'); // 'home', 'workout', 'stats', 'quests'
   const [sessions, setSessions] = useState([]);
   
+  // Stats & Achievements tab interactive states
+  const [statsChartMode, setStatsChartMode] = useState('reps'); // 'reps', 'accuracy', 'rom'
+  const [statsFilterGame, setStatsFilterGame] = useState('all');
+  const [statsFilterEx, setStatsFilterEx] = useState('all');
+  const [statsSearch, setStatsSearch] = useState('');
+  const [badgeFilter, setBadgeFilter] = useState('all'); // 'all', 'unlocked', 'locked'
+  const [hoveredChartPoint, setHoveredChartPoint] = useState(null);
+  
   const isDownRef = useRef(false);
   const repsRef = useRef(0);
   const totalFramesRef = useRef(0);
@@ -968,6 +976,11 @@ export default function PatientView() {
     const xpProgress = (xpRemaining / 250) * 100;
     const xpNeeded = 250 - xpRemaining;
 
+    // Active estimated minutes & gamified ratio
+    const activeMinutes = Math.max(1, Math.round(totalSessions * 3.5 + (totalHolds / 60)));
+    const gamifiedSessionsCount = sessions.filter(s => s.gamePlayed && s.gamePlayed !== 'Standard Tracker').length;
+    const gamifiedPct = totalSessions > 0 ? Math.round((gamifiedSessionsCount / totalSessions) * 100) : 0;
+
     // Avg form accuracy
     const avgSuccessRate = totalSessions > 0
       ? Math.round(sessions.reduce((acc, curr) => acc + (curr.success_rate || 100), 0) / totalSessions)
@@ -975,13 +988,78 @@ export default function PatientView() {
 
     const currentStreak = getStreak(sessions);
 
-    // Badges array
+    // Tier Classification
+    const getTierInfo = (lvl) => {
+      if (lvl >= 20) return { title: 'Diamond Legend', badge: '💎', color: 'from-cyan-500 to-blue-600', text: 'text-cyan-600', border: 'border-cyan-200', bg: 'bg-cyan-50' };
+      if (lvl >= 15) return { title: 'Platinum Titan', badge: '🛡️', color: 'from-indigo-500 to-purple-600', text: 'text-indigo-600', border: 'border-indigo-200', bg: 'bg-indigo-50' };
+      if (lvl >= 10) return { title: 'Gold Master', badge: '🥇', color: 'from-amber-400 to-yellow-500', text: 'text-amber-600', border: 'border-amber-200', bg: 'bg-amber-50' };
+      if (lvl >= 5) return { title: 'Silver Ace', badge: '🥈', color: 'from-slate-400 to-slate-600', text: 'text-slate-600', border: 'border-slate-300', bg: 'bg-slate-100' };
+      return { title: 'Bronze Rookie', badge: '🥉', color: 'from-teal-400 to-emerald-600', text: 'text-teal-600', border: 'border-teal-200', bg: 'bg-teal-50' };
+    };
+    const currentTier = getTierInfo(currentLevel);
+
+    // Badges array with progress tracking
     const achievements = [
-      { id: 'first_step', name: 'First Flight', desc: 'Complete your first virtual game session', unlocked: totalSessions >= 1, icon: '🚀', color: 'text-cyan-700 bg-cyan-50 border-cyan-200' },
-      { id: 'rom_champ', name: 'Perfect Form', desc: 'Achieve 100% accuracy in any exercise session', unlocked: sessions.some(s => s.success_rate === 100), icon: '🎯', color: 'text-amber-700 bg-amber-50 border-amber-200' },
-      { id: 'hold_titan', name: 'Zen Master', desc: 'Perform a static hold session in Zen Bloom', unlocked: totalHolds > 0, icon: '🌸', color: 'text-pink-700 bg-pink-50 border-pink-200' },
-      { id: 'centurion', name: 'Motion Adept', desc: 'Complete 30+ total exercise reps', unlocked: totalReps >= 30, icon: '⚡', color: 'text-indigo-700 bg-indigo-50 border-indigo-200' }
+      { id: 'first_step', name: 'First Flight', desc: 'Complete your first virtual game session', unlocked: totalSessions >= 1, progress: Math.min(100, totalSessions >= 1 ? 100 : 0), icon: '🚀', category: 'Milestone', color: 'text-cyan-700 bg-cyan-50 border-cyan-200' },
+      { id: 'rom_champ', name: 'Sniper Form', desc: 'Achieve 100% accuracy in any exercise session', unlocked: sessions.some(s => s.success_rate === 100), progress: sessions.some(s => s.success_rate === 100) ? 100 : Math.min(99, avgSuccessRate), icon: '🎯', category: 'Biomechanics', color: 'text-amber-700 bg-amber-50 border-amber-200' },
+      { id: 'hold_titan', name: 'Zen Master', desc: 'Perform a static hold session in Zen Bloom', unlocked: totalHolds > 0, progress: totalHolds > 0 ? 100 : 0, icon: '🌸', category: 'Endurance', color: 'text-pink-700 bg-pink-50 border-pink-200' },
+      { id: 'centurion', name: 'Century Reps', desc: 'Complete 100+ total exercise repetitions', unlocked: totalReps >= 100, progress: Math.min(100, Math.round((totalReps / 100) * 100)), current: totalReps, target: 100, icon: '⚡', category: 'Volume', color: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+      { id: 'streak_master', name: 'Consistency Titan', desc: 'Maintain a 3-day active rehabilitation streak', unlocked: currentStreak >= 3, progress: Math.min(100, Math.round((currentStreak / 3) * 100)), current: currentStreak, target: 3, icon: '🔥', category: 'Streak', color: 'text-orange-700 bg-orange-50 border-orange-200' },
+      { id: 'beat_slicer', name: 'Rhythm Maestro', desc: 'Slice rhythm cues in BeatRehab Slicer', unlocked: sessions.some(s => s.gamePlayed === 'BeatRehab Slicer'), progress: sessions.some(s => s.gamePlayed === 'BeatRehab Slicer') ? 100 : 0, icon: '🎵', category: 'Cadence', color: 'text-purple-700 bg-purple-50 border-purple-200' },
+      { id: 'hologram_hero', name: '3D Hologram Pilot', desc: 'Inspect posture in 3D Mannequin mode', unlocked: sessions.some(s => s.gamePlayed === '3D Hologram Mannequin'), progress: sessions.some(s => s.gamePlayed === '3D Hologram Mannequin') ? 100 : 0, icon: '🧊', category: 'Alignment', color: 'text-teal-700 bg-teal-50 border-teal-200' },
+      { id: 'rehab_veteran', name: 'Rehab Veteran', desc: 'Log 25+ completed clinical training sessions', unlocked: totalSessions >= 25, progress: Math.min(100, Math.round((totalSessions / 25) * 100)), current: totalSessions, target: 25, icon: '🏆', category: 'Dedication', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
     ];
+
+    // CSV Clinical Export Handler
+    const handleExportCSV = () => {
+      if (!sessions || sessions.length === 0) {
+        alert("No workout sessions recorded yet.");
+        return;
+      }
+      const headers = ["Session ID", "Date", "Time", "Exercise Name", "Game Interface", "Reps Completed", "Form Accuracy (%)", "Max Angle Achieved (deg)", "Hold Time (s)"];
+      const rows = sessions.map((s, idx) => [
+        idx + 1,
+        new Date(s.date).toLocaleDateString(),
+        new Date(s.date).toLocaleTimeString(),
+        `"${(s.exerciseName || 'General Practice').replace(/"/g, '""')}"`,
+        `"${(s.gamePlayed || 'Standard Tracker').replace(/"/g, '""')}"`,
+        s.reps_completed || 0,
+        s.success_rate || 100,
+        Math.round(s.max_angle_achieved || 0),
+        s.hold_time_achieved || 0
+      ]);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `PoseCare_Rehab_Log_${(user.name || 'Patient').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    // Filtered Sessions for Table & Search
+    const uniqueExercises = Array.from(new Set(sessions.map(s => s.exerciseName).filter(Boolean)));
+    const uniqueGames = Array.from(new Set(sessions.map(s => s.gamePlayed).filter(Boolean)));
+
+    const filteredSessions = sessions.filter(session => {
+      if (statsFilterGame !== 'all' && session.gamePlayed !== statsFilterGame) return false;
+      if (statsFilterEx !== 'all' && session.exerciseName !== statsFilterEx) return false;
+      if (statsSearch.trim()) {
+        const q = statsSearch.toLowerCase();
+        const matchEx = (session.exerciseName || '').toLowerCase().includes(q);
+        const matchGame = (session.gamePlayed || '').toLowerCase().includes(q);
+        const matchDate = new Date(session.date).toLocaleDateString().toLowerCase().includes(q);
+        if (!matchEx && !matchGame && !matchDate) return false;
+      }
+      return true;
+    });
+
+    const filteredAchievements = achievements.filter(badge => {
+      if (badgeFilter === 'unlocked') return badge.unlocked;
+      if (badgeFilter === 'locked') return !badge.unlocked;
+      return true;
+    });
 
     // Local simulated leaderboard (updates dynamic ranking based on XP)
     const mockLeaderboard = [
@@ -1441,94 +1519,558 @@ export default function PatientView() {
 
           {/* TAB 2: STATS & ACHIEVEMENTS */}
           {activeTab === 'stats' && (
-            <div className="space-y-6">
-              {/* Level progress bar */}
-              <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-black text-teal-600 uppercase tracking-widest">Rehab Progress & Level</h3>
-                  <span className="text-xs text-slate-500 font-bold">Level {currentLevel} {totalXP > 500 ? 'Expert' : 'Rookie'}</span>
+            <div className="space-y-8">
+              
+              {/* 1. Rehab Progress, Level & Tier Roadmap Card */}
+              <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl border ${currentTier.border} ${currentTier.bg} shadow-inner`}>
+                      {currentTier.badge}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Rehabilitation Tier</span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${currentTier.border} ${currentTier.bg} ${currentTier.text}`}>
+                          {currentTier.title}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-900 mt-0.5">Level {currentLevel} • {totalXP.toLocaleString()} Total XP</h3>
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <span className="text-xs font-bold text-teal-600 block">{xpNeeded} XP to Level {currentLevel + 1}</span>
+                    <span className="text-[11px] text-slate-400 font-medium">{xpRemaining} / 250 XP in current tier</span>
+                  </div>
                 </div>
-                <div className="bg-slate-100 rounded-full h-4 overflow-hidden mt-3 shadow-inner relative border border-slate-200/80">
-                  <div className="bg-gradient-to-r from-teal-500 to-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${xpProgress}%` }}></div>
+
+                {/* Progress Bar */}
+                <div className="bg-slate-100 rounded-full h-3.5 overflow-hidden shadow-inner relative border border-slate-200/80">
+                  <div 
+                    className={`bg-gradient-to-r ${currentTier.color} h-full rounded-full transition-all duration-700 shadow-sm`}
+                    style={{ width: `${Math.max(5, xpProgress)}%` }}
+                  ></div>
                 </div>
-                <div className="flex justify-between text-[11px] text-slate-400 mt-2 font-semibold">
-                  <span>{xpRemaining} XP / 250 XP</span>
-                  <span>{xpNeeded} XP to Level {currentLevel + 1}</span>
+
+                {/* Tier Milestones Pathway */}
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-3">Rehab Mastery Milestones</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {[
+                      { lvl: 1, title: 'Rookie', perk: 'Starter Library', icon: '🥉' },
+                      { lvl: 5, title: 'Silver Ace', perk: 'Custom Voice Coaches', icon: '🥈' },
+                      { lvl: 10, title: 'Gold Master', perk: 'Synthwave Beat Tracks', icon: '🥇' },
+                      { lvl: 15, title: 'Platinum Titan', perk: 'Advanced Biomechanics', icon: '🛡️' },
+                      { lvl: 20, title: 'Diamond Legend', perk: 'Clinical Recovery Diploma', icon: '💎' },
+                    ].map((tier, idx) => {
+                      const isReached = currentLevel >= tier.lvl;
+                      const isCurrent = currentLevel >= tier.lvl && (idx === 4 || currentLevel < [5, 10, 15, 20][idx]);
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`p-3 rounded-2xl border transition-all ${
+                            isCurrent 
+                              ? 'bg-teal-50/70 border-teal-300 ring-2 ring-teal-500/10 shadow-sm' 
+                              : isReached 
+                                ? 'bg-slate-50/80 border-slate-200 text-slate-700' 
+                                : 'bg-slate-50/30 border-slate-150 opacity-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-base">{tier.icon}</span>
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${isReached ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-500'}`}>
+                              Lvl {tier.lvl}+
+                            </span>
+                          </div>
+                          <span className="text-xs font-black text-slate-900 block truncate">{tier.title}</span>
+                          <span className="text-[9px] text-slate-400 block leading-tight truncate mt-0.5" title={tier.perk}>{tier.perk}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              {/* Stats Highlights */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-sm">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Total Sessions</p>
-                  <p className="text-2xl font-black text-teal-600">{totalSessions}</p>
+              {/* 2. Six High-Impact KPI Performance Metric Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                
+                {/* Metric 1: Total Reps */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-teal-200 transition-all flex flex-col justify-between">
+                  <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-xl mb-3">
+                    🏋️‍♂️
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Total Reps</span>
+                    <span className="text-2xl font-black text-slate-900 mt-0.5 block">{totalReps.toLocaleString()}</span>
+                    <span className="text-[10px] text-teal-600 font-bold block mt-1">Across {totalSessions} sessions</span>
+                  </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-sm">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Total Reps Completed</p>
-                  <p className="text-2xl font-black text-indigo-600">{totalReps}</p>
+
+                {/* Metric 2: Active Time */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-indigo-200 transition-all flex flex-col justify-between">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xl mb-3">
+                    ⏱️
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Active Rehab</span>
+                    <span className="text-2xl font-black text-slate-900 mt-0.5 block">
+                      {activeMinutes >= 60 ? `${Math.floor(activeMinutes / 60)}h ${activeMinutes % 60}m` : `${activeMinutes}m`}
+                    </span>
+                    <span className="text-[10px] text-indigo-600 font-bold block mt-1">Clinical movement</span>
+                  </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center shadow-sm">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Avg Form Accuracy</p>
-                  <p className="text-2xl font-black text-pink-600">{avgSuccessRate}%</p>
+
+                {/* Metric 3: Avg Accuracy */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-pink-200 transition-all flex flex-col justify-between">
+                  <div className="w-10 h-10 rounded-2xl bg-pink-50 border border-pink-100 flex items-center justify-center text-xl mb-3">
+                    🎯
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Avg Accuracy</span>
+                    <span className="text-2xl font-black text-slate-900 mt-0.5 block">{totalSessions > 0 ? `${avgSuccessRate}%` : '0%'}</span>
+                    <span className="text-[10px] text-pink-600 font-bold block mt-1">AI posture rating</span>
+                  </div>
                 </div>
+
+                {/* Metric 4: Daily Streak */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-amber-200 transition-all flex flex-col justify-between">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-xl mb-3">
+                    🔥
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Active Streak</span>
+                    <span className="text-2xl font-black text-slate-900 mt-0.5 block">{currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}</span>
+                    <span className="text-[10px] text-amber-600 font-bold block mt-1">Consistency score</span>
+                  </div>
+                </div>
+
+                {/* Metric 5: Gamified Sessions */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-purple-200 transition-all flex flex-col justify-between">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-xl mb-3">
+                    🎮
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Game Ratio</span>
+                    <span className="text-2xl font-black text-slate-900 mt-0.5 block">{gamifiedPct}%</span>
+                    <span className="text-[10px] text-purple-600 font-bold block mt-1">{gamifiedSessionsCount} arcade plays</span>
+                  </div>
+                </div>
+
+                {/* Metric 6: Total Lifetime XP */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-cyan-200 transition-all flex flex-col justify-between">
+                  <div className="w-10 h-10 rounded-2xl bg-cyan-50 border border-cyan-100 flex items-center justify-center text-xl mb-3">
+                    ⚡
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Energy XP</span>
+                    <span className="text-2xl font-black text-slate-900 mt-0.5 block">{totalXP >= 1000 ? `${(totalXP / 1000).toFixed(1)}k` : totalXP}</span>
+                    <span className="text-[10px] text-cyan-600 font-bold block mt-1">Lifetime earned</span>
+                  </div>
+                </div>
+
               </div>
 
-              {/* Achievements Badges */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <h3 className="text-base font-extrabold text-slate-900">Unlocked Badges</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  {achievements.map((badge, idx) => (
-                    <div 
-                      key={idx}
-                      className={`p-4 rounded-2xl border text-center flex flex-col items-center justify-center transition-all ${
-                        badge.unlocked 
-                          ? `${badge.color} shadow-sm` 
-                          : 'border-slate-150 bg-slate-50/50 opacity-40'
+              {/* 3. Interactive SVG Clinical Recovery & Performance Chart */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <span className="text-[10px] font-black text-teal-600 uppercase tracking-widest block">Biomechanical Analytics</span>
+                    <h3 className="text-base font-extrabold text-slate-900">Recovery & Performance Trajectory</h3>
+                  </div>
+                  
+                  {/* Chart Mode Switcher */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button 
+                      onClick={() => setStatsChartMode('reps')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        statsChartMode === 'reps' 
+                          ? 'bg-white text-teal-700 shadow-sm font-black' 
+                          : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      <span className={`text-3xl mb-2 ${!badge.unlocked && 'grayscale'}`}>{badge.icon}</span>
-                      <h4 className="text-xs font-bold text-slate-800">{badge.name}</h4>
-                      <p className="text-[10px] text-slate-500 mt-1 leading-tight">{badge.desc}</p>
-                      {!badge.unlocked && <span className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-widest border border-slate-200 bg-slate-100 px-2 py-0.5 rounded-full">Locked</span>}
-                      {badge.unlocked && <span className="text-[8px] font-black text-teal-700 mt-2 uppercase tracking-widest bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">Unlocked</span>}
+                      📊 Reps Volume
+                    </button>
+                    <button 
+                      onClick={() => setStatsChartMode('accuracy')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        statsChartMode === 'accuracy' 
+                          ? 'bg-white text-indigo-700 shadow-sm font-black' 
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      🎯 Form Accuracy
+                    </button>
+                    <button 
+                      onClick={() => setStatsChartMode('rom')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        statsChartMode === 'rom' 
+                          ? 'bg-white text-purple-700 shadow-sm font-black' 
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      📐 Max ROM (°)
+                    </button>
+                  </div>
+                </div>
+
+                {/* SVG Visualizer Area */}
+                {sessions.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="relative h-60 w-full bg-slate-50/50 rounded-2xl border border-slate-150 p-4">
+                      {/* Scale Labels */}
+                      <div className="absolute inset-y-4 left-3 flex flex-col justify-between text-[9px] font-mono font-bold text-slate-400 pointer-events-none z-0">
+                        {statsChartMode === 'reps' && (
+                          <>
+                            <span>25 Reps</span>
+                            <span>15 Reps</span>
+                            <span>5 Reps</span>
+                            <span>0</span>
+                          </>
+                        )}
+                        {statsChartMode === 'accuracy' && (
+                          <>
+                            <span>100%</span>
+                            <span>75%</span>
+                            <span>50%</span>
+                            <span>0%</span>
+                          </>
+                        )}
+                        {statsChartMode === 'rom' && (
+                          <>
+                            <span>180°</span>
+                            <span>120°</span>
+                            <span>60°</span>
+                            <span>0°</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Horizontal Grid lines */}
+                      <div className="absolute inset-x-12 top-6 border-b border-dashed border-slate-200"></div>
+                      <div className="absolute inset-x-12 top-1/2 border-b border-dashed border-slate-200"></div>
+                      <div className="absolute inset-x-12 bottom-10 border-b border-dashed border-slate-200"></div>
+
+                      {/* Interactive Data Bars & Nodes */}
+                      <div className="relative h-full flex items-end justify-between pl-12 pr-4 pb-8 z-10 gap-2">
+                        {sessions.slice(-8).map((s, idx) => {
+                          let value = 0;
+                          let maxScale = 25;
+                          let unit = 'reps';
+                          let barColor = 'from-teal-500 to-indigo-500';
+
+                          if (statsChartMode === 'reps') {
+                            value = s.reps_completed || 0;
+                            maxScale = Math.max(20, Math.max(...sessions.slice(-8).map(x => x.reps_completed || 0)));
+                            unit = 'reps';
+                            barColor = 'from-teal-500 to-emerald-500';
+                          } else if (statsChartMode === 'accuracy') {
+                            value = s.success_rate || 100;
+                            maxScale = 100;
+                            unit = '% accuracy';
+                            barColor = 'from-indigo-500 to-pink-500';
+                          } else if (statsChartMode === 'rom') {
+                            value = Math.round(s.max_angle_achieved || 0);
+                            maxScale = 180;
+                            unit = '° ROM';
+                            barColor = 'from-purple-500 to-cyan-500';
+                          }
+
+                          const heightPercent = Math.min(100, Math.max(12, (value / maxScale) * 100));
+                          const dateLabel = new Date(s.date).toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+
+                          return (
+                            <div 
+                              key={idx}
+                              className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
+                              onMouseEnter={() => setHoveredChartPoint({ ...s, value, unit, dateLabel })}
+                              onMouseLeave={() => setHoveredChartPoint(null)}
+                            >
+                              {/* Hover Tooltip */}
+                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-2.5 py-1 rounded-xl text-[10px] font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-30">
+                                <span className="font-extrabold text-teal-300">{value} {unit}</span> • {s.exerciseName}
+                              </div>
+
+                              {/* Bar */}
+                              <div 
+                                className={`w-full max-w-[36px] bg-gradient-to-t ${barColor} rounded-xl shadow-sm transition-all duration-500 group-hover:scale-105 group-hover:brightness-110`}
+                                style={{ height: `${heightPercent}%` }}
+                              ></div>
+
+                              {/* X Axis Label */}
+                              <span className="absolute -bottom-6 text-[9px] font-bold text-slate-400 font-mono uppercase tracking-wider truncate max-w-[50px] text-center">
+                                {new Date(s.date).toLocaleDateString(undefined, { weekday: 'short' })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Chart Context Footer */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150 flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">Recent 8 Sessions:</span>
+                        <span className="font-bold text-slate-800">
+                          {sessions.slice(-8).reduce((acc, curr) => acc + (curr.reps_completed || 0), 0)} Total Reps
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150 flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">Average Form Accuracy:</span>
+                        <span className="font-bold text-indigo-600">
+                          {Math.round(sessions.slice(-8).reduce((acc, curr) => acc + (curr.success_rate || 100), 0) / Math.min(8, sessions.length))}% Form
+                        </span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150 flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">Peak Session Volume:</span>
+                        <span className="font-bold text-teal-600">
+                          {Math.max(...sessions.map(s => s.reps_completed || 0))} Reps
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-slate-400 space-y-2">
+                    <span className="text-3xl block">📊</span>
+                    <p className="text-xs font-semibold">No session analytics recorded yet.</p>
+                    <p className="text-[11px] text-slate-400">Complete exercises in the Workout Hub to visualize your recovery curve.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Expanded Badges & Achievements Showcase */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block">Gamification Trophies</span>
+                    <h3 className="text-base font-extrabold text-slate-900">Achievements & Clinical Milestones</h3>
+                  </div>
+
+                  {/* Badge Filter Tabs */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                    <button
+                      onClick={() => setBadgeFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                        badgeFilter === 'all' ? 'bg-white text-slate-900 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      All ({achievements.length})
+                    </button>
+                    <button
+                      onClick={() => setBadgeFilter('unlocked')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                        badgeFilter === 'unlocked' ? 'bg-white text-teal-700 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Unlocked ({achievements.filter(a => a.unlocked).length})
+                    </button>
+                    <button
+                      onClick={() => setBadgeFilter('locked')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                        badgeFilter === 'locked' ? 'bg-white text-slate-700 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Locked ({achievements.filter(a => !a.unlocked).length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Badges Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {filteredAchievements.map((badge, idx) => (
+                    <div 
+                      key={idx}
+                      className={`p-5 rounded-3xl border flex flex-col justify-between transition-all duration-300 ${
+                        badge.unlocked 
+                          ? `${badge.color} shadow-sm hover:shadow-md hover:-translate-y-0.5` 
+                          : 'border-slate-200 bg-slate-50/60 opacity-60 hover:opacity-80'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between mb-3">
+                          <span className={`text-4xl ${!badge.unlocked && 'grayscale'}`}>{badge.icon}</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/80 border border-slate-200 text-slate-600">
+                            {badge.category}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900">{badge.name}</h4>
+                        <p className="text-[11px] text-slate-500 mt-1 leading-snug">{badge.desc}</p>
+                      </div>
+
+                      {/* Progress bar for in-progress or status badge */}
+                      <div className="mt-4 pt-3 border-t border-slate-200/50">
+                        {badge.unlocked ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black text-teal-700 uppercase tracking-widest bg-teal-100/80 px-2 py-0.5 rounded-full">
+                              ✓ Unlocked
+                            </span>
+                            <span className="text-[10px] font-bold text-teal-600">100%</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-[9px] font-bold text-slate-400">
+                              <span>Locked</span>
+                              <span>{badge.progress}%</span>
+                            </div>
+                            <div className="bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-slate-400 h-full rounded-full" style={{ width: `${badge.progress}%` }}></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Past Sessions History Logs */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <h3 className="text-base font-extrabold text-slate-900">Workout Session History</h3>
+              {/* 5. Filterable Workout Session History Logs with CSV Export */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Clinical Logs</span>
+                    <h3 className="text-base font-extrabold text-slate-900">Workout Session History</h3>
+                  </div>
+
+                  {/* CSV Export Button */}
+                  <button
+                    onClick={handleExportCSV}
+                    disabled={sessions.length === 0}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    <span>📥</span>
+                    <span>Export Clinical CSV</span>
+                  </button>
+                </div>
+
+                {/* Filters & Search Control Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-150">
+                  {/* Search Input */}
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Search Logs</label>
+                    <input 
+                      type="text"
+                      placeholder="Search exercise, date, game..."
+                      value={statsSearch}
+                      onChange={(e) => setStatsSearch(e.target.value)}
+                      className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  {/* Filter Exercise */}
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Exercise</label>
+                    <select
+                      value={statsFilterEx}
+                      onChange={(e) => setStatsFilterEx(e.target.value)}
+                      className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="all">All Exercises ({uniqueExercises.length})</option>
+                      {uniqueExercises.map(ex => (
+                        <option key={ex} value={ex}>{ex}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filter Game Mode */}
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Game Interface</label>
+                    <select
+                      value={statsFilterGame}
+                      onChange={(e) => setStatsFilterGame(e.target.value)}
+                      className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="all">All Interfaces ({uniqueGames.length})</option>
+                      {uniqueGames.map(game => (
+                        <option key={game} value={game}>{game}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Sessions Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider">
-                        <th className="pb-3 pr-2">Date</th>
+                      <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="pb-3 pr-2">Date & Time</th>
                         <th className="pb-3 pr-2">Exercise</th>
                         <th className="pb-3 pr-2">Game Interface</th>
                         <th className="pb-3 pr-2 text-center">Reps</th>
+                        <th className="pb-3 pr-2 text-center">Max ROM</th>
                         <th className="pb-3 text-center">Form Accuracy</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {sessions.map((session, idx) => (
-                        <tr key={idx} className="text-slate-600">
-                          <td className="py-3.5 pr-2 font-medium">{new Date(session.date).toLocaleDateString()}</td>
-                          <td className="py-3.5 pr-2 font-bold text-slate-800">{session.exerciseName}</td>
-                          <td className="py-3.5 pr-2">{session.gamePlayed || 'Standard Tracker'}</td>
-                          <td className="py-3.5 pr-2 text-center font-bold text-teal-600">{session.reps_completed}</td>
-                          <td className="py-3.5 text-center font-bold text-indigo-600">{session.success_rate || 100}%</td>
-                        </tr>
-                      ))}
-                      {sessions.length === 0 && (
+                      {filteredSessions.map((session, idx) => {
+                        const acc = session.success_rate || 100;
+                        let accBadge = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        if (acc < 75) accBadge = 'bg-amber-50 text-amber-700 border-amber-200';
+                        else if (acc < 90) accBadge = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+
+                        let gameIcon = '🩻';
+                        if (session.gamePlayed?.includes('Zen')) gameIcon = '🌸';
+                        else if (session.gamePlayed?.includes('Flappy')) gameIcon = '🚀';
+                        else if (session.gamePlayed?.includes('Beat')) gameIcon = '🎵';
+                        else if (session.gamePlayed?.includes('Mannequin')) gameIcon = '🧊';
+                        else if (session.gamePlayed?.includes('Shadow')) gameIcon = '👤';
+
+                        return (
+                          <tr key={idx} className="text-slate-600 hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3.5 pr-2">
+                              <span className="font-semibold text-slate-800 block">{new Date(session.date).toLocaleDateString()}</span>
+                              <span className="text-[10px] text-slate-400">{new Date(session.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </td>
+                            <td className="py-3.5 pr-2">
+                              <span className="font-bold text-slate-900 block">{session.exerciseName}</span>
+                              {session.hold_time_achieved > 0 && (
+                                <span className="text-[10px] text-indigo-600 font-semibold">⏱ {session.hold_time_achieved}s Hold</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 pr-2">
+                              <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-[11px] font-medium text-slate-700">
+                                <span>{gameIcon}</span>
+                                <span>{session.gamePlayed || 'Standard Tracker'}</span>
+                              </span>
+                            </td>
+                            <td className="py-3.5 pr-2 text-center">
+                              <span className="font-black text-teal-600 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-xl">
+                                {session.reps_completed}
+                              </span>
+                            </td>
+                            <td className="py-3.5 pr-2 text-center font-mono font-bold text-slate-700">
+                              {Math.round(session.max_angle_achieved || 0)}°
+                            </td>
+                            <td className="py-3.5 text-center">
+                              <span className={`inline-block font-black px-2.5 py-1 rounded-xl border text-[11px] ${accBadge}`}>
+                                {acc}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredSessions.length === 0 && (
                         <tr>
-                          <td colSpan="5" className="py-6 text-center text-slate-405 font-bold">No sessions completed yet. Head to Workout Hub to start!</td>
+                          <td colSpan="6" className="py-8 text-center text-slate-400 space-y-2">
+                            <p className="font-bold text-xs">No matching workout sessions found.</p>
+                            {(statsSearch || statsFilterEx !== 'all' || statsFilterGame !== 'all') && (
+                              <button 
+                                onClick={() => {
+                                  setStatsSearch('');
+                                  setStatsFilterEx('all');
+                                  setStatsFilterGame('all');
+                                }}
+                                className="text-teal-600 hover:text-teal-700 font-bold text-xs underline"
+                              >
+                                Clear filters
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
+
             </div>
           )}
 
