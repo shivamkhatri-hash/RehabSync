@@ -428,22 +428,30 @@ app.post('/api/auth/register', async (req, res) => {
     // Securely hash password with bcrypt
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
+    // Doctor accounts start strictly UNVERIFIED and REQUIRE Admin verification from the Admin Panel
+    const isVerifiedStatus = (role === 'admin') ? true : false;
+
     user = new User({ 
       name, 
       email, 
       role, 
       focusArea,
-      password: hashedPassword
+      password: hashedPassword,
+      isVerified: isVerifiedStatus
     });
     await user.save();
 
-    res.status(201).json({ message: 'Account created! Please log in with your credentials.' });
+    const responseMsg = (role === 'doctor')
+      ? 'Doctor account created! Your account is pending Administrator verification before you can access the doctor portal.'
+      : 'Account created! Please log in with your credentials.';
+
+    res.status(201).json({ message: responseMsg });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Step 2: Login - Password authentication with first-time OTP verification
+// Step 2: Login - Password authentication with admin doctor verification & patient OTP
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -468,7 +476,14 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
 
-    // Only require OTP on FIRST TIME login for unverified patients
+    // STRICT ADMIN VERIFICATION ENFORCEMENT FOR DOCTORS
+    if (user.role === 'doctor' && !user.isVerified) {
+      return res.status(403).json({
+        message: '🔒 Doctor account is pending Administrator verification. Only a system administrator can approve your medical credentials from the Admin Panel.'
+      });
+    }
+
+    // Require OTP on FIRST TIME login for unverified patients
     if (user.role === 'patient' && !user.isVerified) {
       const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
       user.otp = generatedOtp;
@@ -492,7 +507,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.json({ requiresOtp: true, email: user.email });
     }
 
-    // Doctors and already verified patients log in directly with password
+    // Verified users (doctors, patients, admins) log in directly with JWT
     const token = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
       JWT_SECRET,

@@ -152,6 +152,7 @@ export default function AdminDashboard() {
 
   // Filtered Users List
   const doctorsList = users.filter(u => u.role === 'doctor');
+  const pendingDoctors = users.filter(u => u.role === 'doctor' && !u.isVerified);
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           u.email.toLowerCase().includes(searchQuery.toLowerCase());
@@ -165,12 +166,12 @@ export default function AdminDashboard() {
       <div className="bg-white border-b border-slate-200/80 px-6 py-4 sticky top-20 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 text-xl font-bold shadow-xs">
-              ⚡
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-200 flex items-center justify-center text-xl">
+              🛡️
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black tracking-tight text-slate-900">PoseCare Admin Portal</h1>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">System Admin Governance</h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 text-purple-700 border border-purple-200 tracking-wider">
                   Super Admin RBAC
                 </span>
@@ -248,6 +249,45 @@ export default function AdminDashboard() {
                 <span className="text-lg">📋</span>
               </div>
               <p className="text-2xl font-black text-emerald-600">{stats.totalPrescriptions}</p>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 1.5: PENDING DOCTOR VERIFICATIONS (ADMIN EXCLUSIVE) */}
+        {pendingDoctors.length > 0 && (
+          <div className="bg-gradient-to-r from-teal-500/10 via-amber-500/10 to-purple-500/10 border-2 border-teal-500/40 rounded-3xl p-6 shadow-md space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-xl shadow-sm">
+                  🩺
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Action Required: {pendingDoctors.length} Doctor Account(s) Awaiting Administrator Verification
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    Doctors cannot log in or access clinical records until verified by an Administrator.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+              {pendingDoctors.map(doc => (
+                <div key={doc._id} className="p-4 bg-white border border-teal-200 rounded-2xl flex justify-between items-center shadow-xs">
+                  <div className="min-w-0 pr-3">
+                    <h4 className="font-extrabold text-slate-900 text-xs truncate">{doc.name}</h4>
+                    <p className="text-[10px] text-slate-400 truncate">{doc.email}</p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleVerify(doc._id, false)}
+                    disabled={actionLoading}
+                    className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-black rounded-xl text-xs shadow-sm transition-all whitespace-nowrap flex items-center gap-1"
+                  >
+                    <span>✓</span> Verify Doctor
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}
