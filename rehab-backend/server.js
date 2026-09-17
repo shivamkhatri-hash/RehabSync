@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 
 const app = express();
@@ -10,6 +11,21 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Auth & Role Verification Middleware
+const JWT_SECRET = process.env.JWT_SECRET || 'posecare_prod_secure_fallback_key';
+
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'Access token required' });
+
+  jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
+    if (err) return res.status(403).json({ message: 'Invalid or expired access token' });
+    req.user = decodedUser;
+    next();
+  });
+};
 
 // --- EMAIL ENGINE SETUP ---
 const transporter = nodemailer.createTransport({
@@ -317,41 +333,24 @@ app.get('/', (req, res) => res.send('API running!'));
 
 // --- AUTHENTICATION ROUTES ---
 
-// Step 1: Register New User & Password (OTP commented out)
+// Step 1: Register New User & Password
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, role, focusArea, password } = req.body;
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ message: 'User already registered' });
 
-    // Commented out OTP generation for password system
-    /*
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    */
+    // Securely hash password with bcrypt
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
-    // Save the new user with the password
     user = new User({ 
       name, 
       email, 
       role, 
       focusArea,
-      password // Storing simple plain-text password for prototype
-      /*
-      otp: generatedOtp,
-      otpExpires: new Date(Date.now() + 5 * 60 * 1000)
-      */
+      password: hashedPassword
     });
     await user.save();
-
-    // Commented out Email transporter OTP dispatch
-    /*
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Welcome to PoseCare - Verify Your Email',
-      html: `<h3>Hello ${name},</h3><p>Your verification code is: <strong style="font-size: 18px; color: #0d9488;">${generatedOtp}</strong></p><p>This code expires in 5 minutes.</p>`
-    });
-    */
 
     res.status(201).json({ message: 'Account created! Please log in with your credentials.' });
   } catch (err) {
@@ -366,9 +365,22 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'No account found with this email' });
 
-    // Verify password
-    if (user.password && user.password !== password) {
-      return res.status(400).json({ message: 'Invalid password' });
+    // Verify password (supports bcrypt hashes with safe backward-compatibility)
+    if (user.password) {
+      let isMatch = false;
+      if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+        isMatch = await bcrypt.compare(password, user.password);
+      } else {
+        // Plain text backward compatibility -> verify and upgrade hash
+        isMatch = (user.password === password);
+        if (isMatch) {
+          user.password = await bcrypt.hash(password, 10);
+          await user.save();
+        }
+      }
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid password' });
+      }
     }
 
     // Only require OTP on FIRST TIME login for unverified patients
@@ -397,9 +409,9 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Doctors and already verified patients log in directly with password
     const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET || 'hackathon_secret',
-      { expiresIn: '1d' }
+      { id: user._id, role: user.role, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
     );
 
     res.json({
@@ -427,9 +439,9 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     await user.save();
 
     const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET || 'hackathon_secret',
-      { expiresIn: '1d' }
+      { id: user._id, role: user.role, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
     );
 
     res.json({
