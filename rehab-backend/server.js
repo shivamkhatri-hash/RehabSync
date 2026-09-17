@@ -159,7 +159,7 @@ const seedDatabase = async () => {
     }
   }
 
-  // Seed Super Administrator
+  // Seed Super Administrator if not exists
   let testAdmin = await User.findOne({ email: 'admin@rehab.com' });
   if (!testAdmin) {
     const hashedAdminPass = await bcrypt.hash('admin123', 10);
@@ -172,241 +172,19 @@ const seedDatabase = async () => {
       isVerified: true
     });
     await testAdmin.save();
-    console.log('🌱 Super Admin seeded: admin@rehab.com / admin123');
+    console.log('🌱 Super Admin initialized: admin@rehab.com / admin123');
   }
 
-  // Seed test Doctor
-  let testDoctor = await User.findOne({ email: 'doctor@test.com' });
-  if (!testDoctor) {
-    testDoctor = new User({
-      name: 'Dr. John Smith',
-      email: 'doctor@test.com',
-      role: 'doctor',
-      password: 'password123',
-      focusArea: 'general'
-    });
-    await testDoctor.save();
-    console.log('🌱 Test doctor seeded: doctor@test.com / password123');
-  }
-
-  // Seed test Patient
-  let testPatient = await User.findOne({ email: 'patient@test.com' });
-  if (!testPatient) {
-    testPatient = new User({
-      name: 'Jane Doe',
-      email: 'patient@test.com',
-      role: 'patient',
-      password: 'password123',
-      focusArea: 'upper_body',
-      assignedDoctorId: testDoctor._id
-    });
-    await testPatient.save();
-    console.log('🌱 Test patient seeded: patient@test.com / password123');
-  }
-
-  // Seed extra patients to match mockup
-  const mockPatients = [
-    { name: 'John Doe', email: 'john@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: testDoctor._id },
-    { name: 'Shivam', email: 'shivam@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: testDoctor._id },
-    { name: 'test 1', email: 'test1@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: null },
-    { name: 'Vaibhav Mamgain', email: 'vaibhav@test.com', role: 'patient', password: 'password123', focusArea: 'general', assignedDoctorId: null }
-  ];
-
-  for (const mp of mockPatients) {
-    let existing = await User.findOne({ email: mp.email });
-    if (!existing) {
-      existing = new User(mp);
-      await existing.save();
-      console.log(`🌱 Mock patient seeded: ${mp.name}`);
-    }
-  }
-
-  // Seed test session logs for Jane Doe to populate charts
-  const testPatientObj = await User.findOne({ email: 'patient@test.com' });
-  if (testPatientObj) {
-    const existingSessions = await SessionLog.findOne({ patientId: testPatientObj._id });
-    if (!existingSessions) {
-      const baseDate = new Date();
-      const mockSessions = [
-        {
-          patientId: testPatientObj._id,
-          exerciseName: 'Mini Squat',
-          reps_completed: 6,
-          max_angle_achieved: 110,
-          gamePlayed: 'Standard Tracker',
-          hold_time_achieved: 8,
-          success_rate: 80,
-          date: new Date(baseDate.getTime() - 6 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: testPatientObj._id,
-          exerciseName: 'Mini Squat',
-          reps_completed: 12,
-          max_angle_achieved: 135,
-          gamePlayed: 'Flappy Rehab',
-          hold_time_achieved: 10,
-          success_rate: 90,
-          date: new Date(baseDate.getTime() - 5 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: testPatientObj._id,
-          exerciseName: 'Mini Squat',
-          reps_completed: 6,
-          max_angle_achieved: 138,
-          gamePlayed: 'Zen Bloom',
-          hold_time_achieved: 10,
-          success_rate: 85,
-          date: new Date(baseDate.getTime() - 4 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: testPatientObj._id,
-          exerciseName: 'Mini Squat',
-          reps_completed: 11,
-          max_angle_achieved: 163,
-          gamePlayed: 'Shadow Match',
-          hold_time_achieved: 10,
-          success_rate: 95,
-          date: new Date(baseDate.getTime() - 3 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: testPatientObj._id,
-          exerciseName: 'Mini Squat',
-          reps_completed: 10,
-          max_angle_achieved: 160,
-          gamePlayed: 'Standard Tracker',
-          hold_time_achieved: 10,
-          success_rate: 100,
-          date: new Date(baseDate.getTime() - 2 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: testPatientObj._id,
-          exerciseName: 'Mini Squat',
-          reps_completed: 8,
-          max_angle_achieved: 160,
-          gamePlayed: 'Flappy Rehab',
-          hold_time_achieved: 9,
-          success_rate: 90,
-          date: new Date(baseDate.getTime() - 1 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: testPatientObj._id,
-          exerciseName: 'Mini Squat',
-          reps_completed: 5,
-          max_angle_achieved: 152,
-          gamePlayed: 'Shadow Match',
-          hold_time_achieved: 8,
-          success_rate: 88,
-          date: baseDate
-        }
-      ];
-      await SessionLog.insertMany(mockSessions);
-      console.log('🌱 Seeded mock session logs for Jane Doe');
-    }
-  }
-
-  // Seed test session logs for John Doe to populate charts
-  const johnPatientObj = await User.findOne({ email: 'john@test.com' });
-  if (johnPatientObj) {
-    const existingJohnSessions = await SessionLog.findOne({ patientId: johnPatientObj._id });
-    if (!existingJohnSessions) {
-      const baseDate = new Date();
-      const mockSessions = [
-        {
-          patientId: johnPatientObj._id,
-          exerciseName: 'Bicep Curl',
-          reps_completed: 4,
-          max_angle_achieved: 120,
-          gamePlayed: 'Standard Tracker',
-          hold_time_achieved: 0,
-          success_rate: 80,
-          date: new Date(baseDate.getTime() - 5 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: johnPatientObj._id,
-          exerciseName: 'Bicep Curl',
-          reps_completed: 8,
-          max_angle_achieved: 100,
-          gamePlayed: 'Flappy Rehab',
-          hold_time_achieved: 0,
-          success_rate: 85,
-          date: new Date(baseDate.getTime() - 4 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: johnPatientObj._id,
-          exerciseName: 'Bicep Curl',
-          reps_completed: 10,
-          max_angle_achieved: 92,
-          gamePlayed: 'Shadow Match',
-          hold_time_achieved: 0,
-          success_rate: 90,
-          date: new Date(baseDate.getTime() - 3 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: johnPatientObj._id,
-          exerciseName: 'Bicep Curl',
-          reps_completed: 12,
-          max_angle_achieved: 85,
-          gamePlayed: 'Flappy Rehab',
-          hold_time_achieved: 0,
-          success_rate: 95,
-          date: new Date(baseDate.getTime() - 2 * 24 * 60 * 60 * 1000)
-        },
-        {
-          patientId: johnPatientObj._id,
-          exerciseName: 'Bicep Curl',
-          reps_completed: 15,
-          max_angle_achieved: 85,
-          gamePlayed: 'Shadow Match',
-          hold_time_achieved: 0,
-          success_rate: 100,
-          date: baseDate
-        }
-      ];
-      await SessionLog.insertMany(mockSessions);
-      console.log('🌱 Seeded mock session logs for John Doe');
-    }
-  }
-
-  // Seed sample appointments for test doctor
-  if (testDoctor) {
-    const existingAppts = await Appointment.findOne({ doctorId: testDoctor._id });
-    if (!existingAppts) {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const appts = [
-        {
-          doctorId: testDoctor._id,
-          patientName: 'Jane Doe',
-          date: todayStr,
-          time: '09:00 AM',
-          type: 'Upper Body Review',
-          duration: '30 mins',
-          status: 'Completed',
-          notes: 'Reviewed shoulder flexion range. Progressing well.'
-        },
-        {
-          doctorId: testDoctor._id,
-          patientName: 'Shivam',
-          date: todayStr,
-          time: '11:30 AM',
-          type: 'Biceps Curl Evaluation',
-          duration: '45 mins',
-          status: 'Confirmed',
-          notes: 'Assess elbow extension mobility and prescribe 15 reps.'
-        },
-        {
-          doctorId: testDoctor._id,
-          patientName: 'Vaibhav Mamgain',
-          date: todayStr,
-          time: '03:00 PM',
-          type: 'Initial Consultation',
-          duration: '60 mins',
-          status: 'Pending',
-          notes: 'New patient intake for knee joint rehab.'
-        }
-      ];
-      await Appointment.insertMany(appts);
-      console.log('🌱 Seeded sample appointments for test doctor');
-    }
+  // Cleanup legacy mock entries from database if present
+  const mockEmailsToRemove = ['john@test.com', 'shivam@test.com', 'test1@test.com', 'vaibhav@test.com', 'patient@test.com', 'doctor@test.com'];
+  const mockUsers = await User.find({ email: { $in: mockEmailsToRemove } });
+  if (mockUsers.length > 0) {
+    const mockIds = mockUsers.map(u => u._id);
+    await User.deleteMany({ _id: { $in: mockIds } });
+    await SessionLog.deleteMany({ patientId: { $in: mockIds } });
+    await Prescription.deleteMany({ $or: [{ patientId: { $in: mockIds } }, { doctorId: { $in: mockIds } }] });
+    await Appointment.deleteMany({ $or: [{ patientId: { $in: mockIds } }, { doctorId: { $in: mockIds } }] });
+    console.log(`🧹 Cleaned up ${mockUsers.length} default mock user entries and associated data.`);
   }
 };
 mongoose.connection.once('open', seedDatabase);
