@@ -4,42 +4,69 @@ import { API_URL } from '../config';
 import PoseCareLogo from '../components/PoseCareLogo';
 
 export default function Auth() {
-  const [view, setView] = useState('login'); // 'login' or 'register'
-  const [step, setStep] = useState(1); // 1: Email, 2: OTP (Commented out in logic)
+  const [view, setView] = useState('login'); // 'login' | 'register' | 'forgot'
+  const [step, setStep] = useState(1); // Login step: 1 (Password), 2 (First-time OTP)
+  const [forgotStep, setForgotStep] = useState(1); // Forgot step: 1 (Request OTP), 2 (Reset Password)
+  const [loading, setLoading] = useState(false);
   
   // Form Data
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState(''); // Added password field
+  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('patient');
   const [focusArea, setFocusArea] = useState('general');
+  const [feedbackMessage, setFeedbackMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
   
   const navigate = useNavigate();
+
+  const clearAlerts = () => {
+    setFeedbackMessage(null);
+    setErrorMessage(null);
+  };
+
+  const handleRoleNavigation = (userObj) => {
+    if (userObj.role === 'admin') {
+      navigate('/admin');
+    } else if (userObj.role === 'doctor') {
+      navigate('/doctor');
+    } else {
+      navigate('/scanner');
+    }
+  };
 
   // Handle Registration
   const handleRegister = async (e) => {
     e.preventDefault();
+    clearAlerts();
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, role, focusArea, password }) // Added password
+        body: JSON.stringify({ name, email, role, focusArea, password })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) throw new Error(data.message || data.error);
       
-      alert('Registration successful! Please log in with your email and password.');
+      setFeedbackMessage('Registration successful! Please sign in with your credentials.');
       setView('login');
       setStep(1);
     } catch (err) {
-      alert(err.message);
+      setErrorMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   // Handle Password Login
   const handleLogin = async (e) => {
     e.preventDefault();
+    clearAlerts();
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
@@ -47,24 +74,28 @@ export default function Auth() {
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) throw new Error(data.message || data.error);
       
       if (data.requiresOtp) {
         setStep(2);
-        alert('🔑 First-time verification code (OTP) sent to your email. Please enter it below.');
+        setFeedbackMessage('🔑 First-time verification code (OTP) sent to your email.');
       } else {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        navigate(data.user.role === 'doctor' ? '/doctor' : '/scanner');
+        handleRoleNavigation(data.user);
       }
     } catch (err) {
-      alert(err.message);
+      setErrorMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle OTP Verification and Login
+  // Handle OTP Verification on First Login
   const verifyOtp = async (e) => {
     e.preventDefault();
+    clearAlerts();
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/auth/verify-otp`, {
         method: 'POST',
@@ -72,60 +103,168 @@ export default function Auth() {
         body: JSON.stringify({ email, otp })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) throw new Error(data.message || data.error);
       
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      navigate(data.user.role === 'doctor' ? '/doctor' : '/scanner');
+      handleRoleNavigation(data.user);
     } catch (err) {
-      alert(err.message);
+      setErrorMessage(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Forgot Password - Step 1: Request Reset OTP
+  const handleRequestForgotOtp = async (e) => {
+    e.preventDefault();
+    clearAlerts();
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error);
+
+      setFeedbackMessage('A 6-digit password reset code has been dispatched to your email.');
+      setForgotStep(2);
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Forgot Password - Step 2: Verify OTP and Reset
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    clearAlerts();
+    if (newPassword !== confirmPassword) {
+      setErrorMessage('Passwords do not match. Please ensure both passwords are identical.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setErrorMessage('New password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error);
+
+      setFeedbackMessage('Password successfully updated! Please log in with your new password.');
+      setView('login');
+      setStep(1);
+      setForgotStep(1);
+      setPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setOtp('');
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center mb-4 cursor-pointer" onClick={() => navigate('/')}>
           <PoseCareLogo size="lg" variant="full" />
         </div>
-        <h2 className="mt-2 text-center text-2xl font-extrabold text-gray-900">
-          {view === 'login' ? 'Sign in to your account' : 'Create a new account'}
+        <h2 className="mt-2 text-center text-2xl font-black text-slate-900 tracking-tight">
+          {view === 'login' && 'Sign in to your account'}
+          {view === 'register' && 'Create your PoseCare account'}
+          {view === 'forgot' && 'Reset your password'}
         </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          {view === 'login' && 'Enter your credentials to access your rehabilitation portal'}
+          {view === 'register' && 'Join PoseCare for AI-guided physical therapy and tracking'}
+          {view === 'forgot' && 'Follow the steps below to securely restore your access'}
+        </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
+        <div className="bg-white py-8 px-6 shadow-xl rounded-2xl sm:px-10 border border-slate-200">
           
-          {/* LOGIN VIEW: STEP 1 (EMAIL + PASSWORD) */}
+          {/* Feedback & Error Alerts */}
+          {feedbackMessage && (
+            <div className="mb-5 p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-semibold flex items-center gap-2">
+              <span>✅</span> {feedbackMessage}
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+              <span>⚠️</span> {errorMessage}
+            </div>
+          )}
+
+          {/* ==================== 1. LOGIN VIEW ==================== */}
           {view === 'login' && step === 1 && (
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email address</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Email address</label>
                 <div className="mt-1">
-                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500" />
+                  <input 
+                    type="email" 
+                    required 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="appearance-none block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" 
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Password</label>
+                  <button 
+                    type="button" 
+                    onClick={() => { setView('forgot'); setForgotStep(1); clearAlerts(); }}
+                    className="text-xs font-bold text-teal-600 hover:text-teal-700 transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <div className="mt-1">
-                  <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500" />
+                  <input 
+                    type="password" 
+                    required 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="appearance-none block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" 
+                  />
                 </div>
               </div>
 
-              <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none">
-                Sign In
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg shadow-teal-600/10 text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 focus:outline-none transition-all disabled:opacity-50"
+              >
+                {loading ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
           )}
 
-          {/* LOGIN VIEW: STEP 2 (FIRST-TIME OTP VERIFICATION) */}
+          {/* ==================== 2. FIRST-TIME OTP VIEW ==================== */}
           {view === 'login' && step === 2 && (
-            <form onSubmit={verifyOtp} className="space-y-6">
+            <form onSubmit={verifyOtp} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-teal-600 font-extrabold text-xs uppercase tracking-wider">First-Time Email Verification (OTP)</label>
+                <label className="block text-xs font-black uppercase tracking-wider text-teal-700">First-Time Email Verification (OTP)</label>
                 <p className="text-xs text-slate-500 mt-1 mb-3">Please enter the 6-digit verification code sent to <strong>{email}</strong> to activate your account.</p>
                 <div className="mt-1">
                   <input 
@@ -134,80 +273,220 @@ export default function Auth() {
                     maxLength={6}
                     value={otp} 
                     onChange={(e) => setOtp(e.target.value)}
-                    placeholder="Enter 6-digit OTP"
-                    className="appearance-none block w-full px-3 py-2.5 text-center text-lg font-black tracking-widest border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500" 
+                    placeholder="000000"
+                    className="appearance-none block w-full px-3 py-3 text-center text-2xl font-black tracking-[0.4em] border border-slate-300 rounded-xl shadow-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" 
                   />
                 </div>
               </div>
 
-              <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none">
-                Verify & Continue
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 focus:outline-none transition-all disabled:opacity-50"
+              >
+                {loading ? 'Verifying...' : 'Verify & Continue'}
               </button>
               
               <button 
                 type="button" 
                 onClick={() => setStep(1)} 
-                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none mt-2"
+                className="w-full flex justify-center py-2.5 px-4 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 focus:outline-none"
               >
                 Back to Password Sign In
               </button>
             </form>
           )}
 
+          {/* ==================== 3. FORGOT PASSWORD VIEW ==================== */}
+          {view === 'forgot' && forgotStep === 1 && (
+            <form onSubmit={handleRequestForgotOtp} className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Registered Email Address</label>
+                <p className="text-xs text-slate-500 mt-1 mb-2">We will send a 6-digit verification code to this address.</p>
+                <input 
+                  type="email" 
+                  required 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="appearance-none block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" 
+                />
+              </div>
 
-          {/* REGISTER VIEW */}
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 transition-all disabled:opacity-50 shadow-md shadow-teal-600/10"
+              >
+                {loading ? 'Sending Code...' : 'Send Reset Code'}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => { setView('login'); setStep(1); clearAlerts(); }}
+                className="w-full flex justify-center py-2.5 px-4 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50"
+              >
+                Back to Sign In
+              </button>
+            </form>
+          )}
+
+          {/* FORGOT PASSWORD - STEP 2 (ENTER OTP & NEW PASSWORD) */}
+          {view === 'forgot' && forgotStep === 2 && (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">6-Digit Verification Code</label>
+                <input 
+                  type="text" 
+                  required 
+                  maxLength={6}
+                  value={otp} 
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter 6-digit code"
+                  className="mt-1 block w-full px-3 py-2.5 text-center text-xl font-black tracking-widest border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">New Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  minLength={6}
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Confirm New Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  minLength={6}
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat new password"
+                  className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" 
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 transition-all disabled:opacity-50 mt-2 shadow-md shadow-teal-600/10"
+              >
+                {loading ? 'Resetting Password...' : 'Save New Password & Sign In'}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => setForgotStep(1)} 
+                className="w-full flex justify-center py-2 px-4 text-xs font-bold text-slate-500 hover:text-slate-800"
+              >
+                Re-enter Email / Request New Code
+              </button>
+            </form>
+          )}
+
+          {/* ==================== 4. REGISTER VIEW ==================== */}
           {view === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Full Name</label>
-                <input type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Full Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Jane Doe"
+                  className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" 
+                />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">I am a...</label>
-                <select value={role} onChange={(e) => setRole(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500">
-                  <option value="patient">Patient</option>
-                  <option value="doctor">Doctor</option>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Account Role (RBAC)</label>
+                <select 
+                  value={role} 
+                  onChange={(e) => setRole(e.target.value)}
+                  className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="patient">Patient (Rehab Exercises & Tracking)</option>
+                  <option value="doctor">Doctor / Clinician (Prescriptions & Monitoring)</option>
+                  <option value="admin">Administrator (System Governance & RBAC)</option>
                 </select>
               </div>
 
               {role === 'patient' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Rehabilitation Focus</label>
-                  <select value={focusArea} onChange={(e) => setFocusArea(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500">
-                    <option value="general">General Recovery</option>
-                    <option value="upper_body">Upper Body (Shoulders/Arms)</option>
-                    <option value="core">Core & Back</option>
-                    <option value="lower_body">Lower Body (Legs/Knees)</option>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Rehabilitation Focus</label>
+                  <select 
+                    value={focusArea} 
+                    onChange={(e) => setFocusArea(e.target.value)}
+                    className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="general">General Physical Recovery</option>
+                    <option value="upper_body">Upper Body (Shoulders & Elbows)</option>
+                    <option value="core">Core & Spine Alignment</option>
+                    <option value="lower_body">Lower Body (Hips, Knees & Ankles)</option>
                   </select>
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email Address</label>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Email Address</label>
+                <input 
+                  type="email" 
+                  required 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" 
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Password</label>
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500" />
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  minLength={6}
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" 
+                />
               </div>
 
-              <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 mt-6">
-                Create Account
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg shadow-teal-600/10 text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 transition-all mt-4 disabled:opacity-50"
+              >
+                {loading ? 'Creating Account...' : 'Create Account'}
               </button>
             </form>
           )}
 
-          <div className="mt-6 text-center">
-            <button onClick={() => { setView(view === 'login' ? 'register' : 'login'); setStep(1); }} className="text-sm font-medium text-teal-600 hover:text-teal-500">
-              {view === 'login' ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-            </button>
+          {/* View Toggle */}
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+            {view !== 'forgot' ? (
+              <button 
+                onClick={() => { setView(view === 'login' ? 'register' : 'login'); setStep(1); clearAlerts(); }} 
+                className="text-xs font-bold text-teal-600 hover:text-teal-700"
+              >
+                {view === 'login' ? "Don't have an account? Sign up for PoseCare" : "Already have an account? Sign in"}
+              </button>
+            ) : (
+              <button 
+                onClick={() => { setView('login'); setStep(1); clearAlerts(); }} 
+                className="text-xs font-bold text-teal-600 hover:text-teal-700"
+              >
+                Remember your password? Sign in
+              </button>
+            )}
           </div>
         </div>
       </div>

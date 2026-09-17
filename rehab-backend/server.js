@@ -27,6 +27,17 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Admin Only Role Guard
+const requireAdmin = (req, res, next) => {
+  authenticateToken(req, res, () => {
+    if (req.user && req.user.role === 'admin') {
+      next();
+    } else {
+      res.status(403).json({ message: 'Access denied: Administrator privileges required' });
+    }
+  });
+};
+
 // --- EMAIL ENGINE SETUP ---
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -47,14 +58,16 @@ mongoose.connect(process.env.MONGO_URI)
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  role: { type: String, enum: ['doctor', 'patient'], required: true },
+  role: { type: String, enum: ['doctor', 'patient', 'admin'], required: true },
   assignedDoctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   focusArea: { type: String, default: 'general' },
-  password: { type: String, default: null }, // Added password field
-  isVerified: { type: Boolean, default: false }, // OTP verified on first login
+  password: { type: String, default: null },
+  isVerified: { type: Boolean, default: false },
   otp: { type: String, default: null },
-  otpExpires: { type: Date, default: null }
-});
+  otpExpires: { type: Date, default: null },
+  resetOtp: { type: String, default: null },
+  resetOtpExpires: { type: Date, default: null }
+}, { timestamps: true });
 const User = mongoose.model('User', userSchema);
 
 // Prescription Schema
@@ -130,6 +143,22 @@ const seedDatabase = async () => {
       existing.failure_angle = ex.failure_angle;
       await existing.save();
     }
+  }
+
+  // Seed Super Administrator
+  let testAdmin = await User.findOne({ email: 'admin@rehab.com' });
+  if (!testAdmin) {
+    const hashedAdminPass = await bcrypt.hash('admin123', 10);
+    testAdmin = new User({
+      name: 'System Administrator',
+      email: 'admin@rehab.com',
+      role: 'admin',
+      password: hashedAdminPass,
+      focusArea: 'administration',
+      isVerified: true
+    });
+    await testAdmin.save();
+    console.log('🌱 Super Admin seeded: admin@rehab.com / admin123');
   }
 
   // Seed test Doctor
@@ -448,6 +477,200 @@ app.post('/api/auth/verify-otp', async (req, res) => {
       token,
       user: { id: user._id, name: user.name, email: user.email, role: user.role, focusArea: user.focusArea }
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Step 4: Forgot Password - Request 6-digit Reset OTP
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email address is required' });
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(200).json({ message: 'If an account exists with this email, a reset code has been sent.' });
+    }
+
+    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetOtp = resetOtp;
+    user.resetOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'PoseCare — Password Reset Verification Code',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+            <h2 style="color: #0b2b47; margin-bottom: 10px;">Password Reset Request</h2>
+            <p style="color: #475569;">Hello <strong>${user.name}</strong>,</p>
+            <p style="color: #475569;">You requested a password reset for your PoseCare account. Enter the verification code below:</p>
+            <div style="background: #f0fdfa; border: 1px dashed #0d9488; text-align: center; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <span style="font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #0f766e;">${resetOtp}</span>
+            </div>
+            <p style="color: #94a3b8; font-size: 12px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+          </div>
+        `
+      });
+      console.log(`📨 Sent password reset OTP to ${email}`);
+    } catch (mailErr) {
+      console.warn(`⚠️ Nodemailer failed to send reset email. Displaying in console:`);
+      console.log(`🔑 [Password Reset OTP for ${email}]: ${resetOtp}`);
+    }
+
+    res.json({ message: 'If an account exists with this email, a reset code has been sent.', email: user.email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Step 5: Reset Password - Verify OTP & Update Password
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'Email, verification code, and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'No account associated with this email' });
+
+    if (!user.resetOtp || user.resetOtp !== otp) {
+      return res.status(400).json({ message: 'Invalid or incorrect verification code' });
+    }
+
+    if (new Date() > user.resetOtpExpires) {
+      return res.status(400).json({ message: 'Verification code has expired. Please request a new one.' });
+    }
+
+    // Hash the new password with bcrypt
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetOtp = null;
+    user.resetOtpExpires = null;
+    user.isVerified = true;
+    await user.save();
+
+    res.json({ message: 'Password successfully reset! You can now log in with your new password.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// --- ADMIN RBAC ROUTES ---
+
+// 1. Get System Statistics for Admin Portal
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const [totalUsers, totalDoctors, totalPatients, totalAdmins, totalSessions, totalPrescriptions] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ role: 'doctor' }),
+      User.countDocuments({ role: 'patient' }),
+      User.countDocuments({ role: 'admin' }),
+      SessionLog.countDocuments(),
+      Prescription.countDocuments()
+    ]);
+
+    // Recent activity logs
+    const recentSessions = await SessionLog.find()
+      .populate('patientId', 'name email')
+      .sort({ date: -1 })
+      .limit(8);
+
+    res.json({
+      stats: {
+        totalUsers,
+        totalDoctors,
+        totalPatients,
+        totalAdmins,
+        totalSessions,
+        totalPrescriptions
+      },
+      recentSessions
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Get All Users (Admin User Directory)
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find()
+      .populate('assignedDoctorId', 'name email')
+      .select('-password -otp -resetOtp')
+      .sort({ createdAt: -1 });
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Update User Role (Admin Promotion/Demotion)
+app.put('/api/admin/users/:userId/role', requireAdmin, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['doctor', 'patient', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role specified' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.userId,
+      { role },
+      { new: true }
+    ).select('-password -otp -resetOtp');
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: `User role updated to ${role}`, user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Assign Doctor to Patient (Admin Override)
+app.put('/api/admin/users/:patientId/assign-doctor', requireAdmin, async (req, res) => {
+  try {
+    const { doctorId } = req.body;
+    const patient = await User.findByIdAndUpdate(
+      req.params.patientId,
+      { assignedDoctorId: doctorId || null },
+      { new: true }
+    ).populate('assignedDoctorId', 'name email').select('-password');
+
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+    res.json({ message: 'Doctor assignment updated', patient });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Delete User Account (Admin Delete)
+app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
+  try {
+    const targetUser = await User.findById(req.params.userId);
+    if (!targetUser) return res.status(404).json({ message: 'User not found' });
+
+    // Prevent deleting own account
+    if (targetUser._id.toString() === req.user.id) {
+      return res.status(400).json({ message: 'Cannot delete your own administrator account' });
+    }
+
+    await User.findByIdAndDelete(req.params.userId);
+    // Cleanup associated session logs & prescriptions
+    await Promise.all([
+      SessionLog.deleteMany({ patientId: req.params.userId }),
+      Prescription.deleteMany({ $or: [{ patientId: req.params.userId }, { doctorId: req.params.userId }] })
+    ]);
+
+    res.json({ message: `User ${targetUser.name} and associated records deleted.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
