@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import PoseCareLogo from '../components/PoseCareLogo';
 
 export default function LandingPage() {
   return (
@@ -114,6 +115,18 @@ export default function LandingPage() {
           ))}
         </div>
       </div>
+
+      {/* Footer with PoseCare Logo */}
+      <footer className="bg-white border-t border-slate-200 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col items-center md:items-start gap-2">
+            <PoseCareLogo size="md" variant="full" />
+          </div>
+          <p className="text-xs text-slate-400 font-medium text-center md:text-right">
+            © {new Date().getFullYear()} PoseCare Platform. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

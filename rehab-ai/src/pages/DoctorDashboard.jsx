@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, CV_API_URL } from '../config';
+import PoseCareLogo from '../components/PoseCareLogo';
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
@@ -221,11 +222,8 @@ export default function DoctorDashboard() {
       <div className="w-72 bg-slate-900 text-slate-300 flex flex-col h-[calc(100vh-64px)] overflow-y-auto shrink-0 border-r border-slate-850">
         
         {/* PoseCare Header logo */}
-        <div className="p-5 flex items-center gap-3 border-b border-slate-800">
-          <div className="w-8 h-8 rounded-xl bg-teal-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-teal-500/25">
-            🩻
-          </div>
-          <span className="text-xl font-bold tracking-tight text-white">PoseCare</span>
+        <div className="p-4 flex items-center justify-between border-b border-slate-800">
+          <PoseCareLogo size="sm" variant="horizontal" theme="dark" />
         </div>
 
         {/* Navigation links block */}

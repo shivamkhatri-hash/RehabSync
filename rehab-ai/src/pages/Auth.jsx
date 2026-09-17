@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
+import PoseCareLogo from '../components/PoseCareLogo';
 
 export default function Auth() {
   const [view, setView] = useState('login'); // 'login' or 'register'
@@ -83,8 +84,11 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <div className="flex justify-center mb-4 cursor-pointer" onClick={() => navigate('/')}>
+          <PoseCareLogo size="lg" variant="full" />
+        </div>
+        <h2 className="mt-2 text-center text-2xl font-extrabold text-gray-900">
           {view === 'login' ? 'Sign in to your account' : 'Create a new account'}
         </h2>
       </div>

@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import PoseCareLogo from './PoseCareLogo';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -17,8 +18,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16 items-center">
           {/* Brand */}
           <div className="flex-shrink-0 flex items-center cursor-pointer" onClick={() => navigate('/')}>
-            <span className="text-teal-600 text-2xl font-bold tracking-tight">Pose</span>
-            <span className="text-gray-800 text-2xl font-bold tracking-tight">Care</span>
+            <PoseCareLogo size="md" variant="horizontal" />
           </div>
 
           {/* Center Links */}
