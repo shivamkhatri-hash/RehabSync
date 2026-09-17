@@ -7,6 +7,7 @@ import * as zenBloom from '../games/zenBloom';
 import * as flappyRehab from '../games/flappyRehab';
 import * as mannequinTracker from '../games/mannequinTracker';
 import * as shadowMatch from '../games/shadowMatch';
+import * as beatRehab from '../games/beatRehab';
 
 const calculateAngle = (a, b, c) => {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
@@ -543,6 +544,8 @@ export default function PatientView() {
       gameStateRef.current = { ...gameStateRef.current, ...mannequinTracker.init() };
     } else if (gameMode === 'shadow') {
       gameStateRef.current = { ...gameStateRef.current, ...shadowMatch.init() };
+    } else if (gameMode === 'beat') {
+      gameStateRef.current = { ...gameStateRef.current, ...beatRehab.init() };
     }
     
     repsRef.current = 0;
@@ -802,6 +805,17 @@ export default function PatientView() {
               setReps
             });
           }
+
+          else if (gameMode === 'beat') {
+            beatRehab.draw(ctxGame, gameCanvas, gameStateRef.current, {
+              liveAngleVal,
+              currentExercise,
+              speakText,
+              repsRef,
+              setReps,
+              isPostureInvalid
+            });
+          }
         }
       }
       animationFrameId = requestAnimationFrame(renderLoop);
@@ -890,7 +904,10 @@ export default function PatientView() {
       const modeNames = {
         standard: 'Standard Tracker',
         zen: 'Zen Bloom Garden',
-        flappy: 'Flappy Rehab Flight'
+        flappy: 'Flappy Rehab Flight',
+        mannequin: '3D Hologram Mannequin',
+        shadow: 'Posture Shadow Match',
+        beat: 'BeatRehab Slicer'
       };
 
       const totalF = totalFramesRef.current;
@@ -1352,6 +1369,21 @@ export default function PatientView() {
                      <span className="text-3xl">🚀</span>
                      <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Flappy Flight</h3>
                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Classic gates flyer. Altitude maps directly to joint angle, encouraging range extensions.</p>
+                   </div>
+
+                   {/* Mode Option 3: BeatRehab (Rhythm Slicer) */}
+                   <div 
+                     onClick={() => setGameMode('beat')}
+                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
+                       gameMode === 'beat' ? 'border-purple-500 bg-white ring-2 ring-purple-500/20 shadow-md' : 'border-slate-200 bg-white hover:border-purple-300 shadow-sm'
+                     }`}
+                   >
+                     <span className="absolute top-4 right-4 bg-purple-50 text-purple-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-purple-200 shadow-sm">
+                       NEW
+                     </span>
+                     <span className="text-3xl">🎵</span>
+                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">BeatRehab Slicer</h3>
+                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Synthwave rhythm arcade. Elevate neon saber with joint movement to slice rhythm notes with cadence control.</p>
                    </div>
    
                    {/* Mode Option 4: Standard Tracker */}
