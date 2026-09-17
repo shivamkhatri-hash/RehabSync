@@ -15,6 +15,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/patient" element={<PatientView />} />
         <Route path="/scanner" element={<PatientView />} />
         <Route path="/doctor" element={<DoctorDashboard />} />
         <Route path="/admin" element={<AdminDashboard />} />

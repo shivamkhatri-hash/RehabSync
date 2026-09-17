@@ -34,7 +34,7 @@ export default function Auth() {
     } else if (userObj.role === 'doctor') {
       navigate('/doctor');
     } else {
-      navigate('/scanner');
+      navigate('/patient');
     }
   };
 

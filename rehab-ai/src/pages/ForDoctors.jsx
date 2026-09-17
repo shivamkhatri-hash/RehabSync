@@ -10,7 +10,7 @@ export default function ForDoctors() {
     if (token && user) {
       if (user.role === 'doctor') navigate('/doctor');
       else if (user.role === 'admin') navigate('/admin');
-      else navigate('/scanner');
+      else navigate('/patient');
     } else {
       navigate('/auth');
     }

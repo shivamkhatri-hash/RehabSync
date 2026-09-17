@@ -36,21 +36,25 @@ export default function Navbar() {
               <>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-600 text-sm">Hello, <span className="font-semibold text-gray-800">{user.name}</span></span>
-                  {user.role === 'admin' && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200 rounded">
-                      Admin
-                    </span>
-                  )}
+                  <span className={`px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded border ${
+                    user.role === 'admin' 
+                      ? 'bg-purple-100 text-purple-700 border-purple-200' 
+                      : user.role === 'doctor'
+                      ? 'bg-teal-100 text-teal-700 border-teal-200'
+                      : 'bg-blue-100 text-blue-700 border-blue-200'
+                  }`}>
+                    {user.role}
+                  </span>
                 </div>
                 <button 
                   onClick={() => {
                     if (user.role === 'admin') navigate('/admin');
                     else if (user.role === 'doctor') navigate('/doctor');
-                    else navigate('/scanner');
+                    else navigate('/patient');
                   }}
                   className="bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm"
                 >
-                  {user.role === 'admin' ? '⚡ Admin Portal' : user.role === 'doctor' ? '🩺 Clinical Portal' : '🏋️ Scanner'}
+                  {user.role === 'admin' ? '⚡ Admin Portal' : user.role === 'doctor' ? '🩺 Clinical Portal' : '🏃 Patient Portal'}
                 </button>
                 <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-red-500 font-medium">Logout</button>
               </>
