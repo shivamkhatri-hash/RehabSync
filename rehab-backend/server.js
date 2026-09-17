@@ -691,6 +691,23 @@ app.put('/api/admin/users/:userId/role', requireAdmin, async (req, res) => {
   }
 });
 
+// 4. Update User Verification Status (Admin Verify / Approve Doctor)
+app.put('/api/admin/users/:userId/verify', requireAdmin, async (req, res) => {
+  try {
+    const { isVerified } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.params.userId,
+      { isVerified: isVerified !== undefined ? isVerified : true },
+      { new: true }
+    ).select('-password -otp -resetOtp');
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: `User verification updated to ${user.isVerified ? 'Verified' : 'Pending'}`, user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 4. Assign Doctor to Patient (Admin Override)
 app.put('/api/admin/users/:patientId/assign-doctor', requireAdmin, async (req, res) => {
   try {

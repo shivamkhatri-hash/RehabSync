@@ -126,6 +126,30 @@ export default function AdminDashboard() {
     }
   };
 
+  // Toggle/Update User Verification Status Handler (Verify Doctor)
+  const handleToggleVerify = async (userId, currentStatus) => {
+    setActionLoading(true);
+    try {
+      const newStatus = !currentStatus;
+      const res = await fetch(`${API_URL}/api/admin/users/${userId}/verify`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isVerified: newStatus })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setUsers(users.map(u => u._id === userId ? { ...u, isVerified: newStatus } : u));
+    } catch (err) {
+      alert("Error updating verification: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Filtered Users List
   const doctorsList = users.filter(u => u.role === 'doctor');
   const filteredUsers = users.filter(u => {
@@ -350,29 +374,45 @@ export default function AdminDashboard() {
                           )}
                         </td>
 
-                        {/* Status */}
+                        {/* Status (Clickable Toggle to Verify Doctor/User) */}
                         <td className="py-4 px-6">
-                          {u.isVerified ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span>✓</span> Verified
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                              <span>⏳</span> Pending
-                            </span>
-                          )}
+                          <button
+                            onClick={() => handleToggleVerify(u._id, u.isVerified)}
+                            disabled={actionLoading}
+                            title={u.isVerified ? "Click to revoke verification" : "Click to approve & verify account"}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer shadow-xs ${
+                              u.isVerified 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' 
+                                : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:scale-105'
+                            }`}
+                          >
+                            <span>{u.isVerified ? '✓' : '⏳'}</span>
+                            <span>{u.isVerified ? 'Verified' : 'Pending (Verify)'}</span>
+                          </button>
                         </td>
 
                         {/* Actions */}
                         <td className="py-4 px-6 text-right">
-                          {!isSelf && (
-                            <button
-                              onClick={() => handleDeleteUser(u._id, u.name)}
-                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 hover:text-red-700 rounded-xl text-xs font-bold transition-all shadow-xs"
-                            >
-                              Delete
-                            </button>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            {!u.isVerified && (
+                              <button
+                                onClick={() => handleToggleVerify(u._id, u.isVerified)}
+                                disabled={actionLoading}
+                                className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-300 text-teal-700 hover:text-teal-800 rounded-xl text-xs font-black transition-all shadow-xs flex items-center gap-1"
+                              >
+                                <span>✓</span> Verify Doctor
+                              </button>
+                            )}
+
+                            {!isSelf && (
+                              <button
+                                onClick={() => handleDeleteUser(u._id, u.name)}
+                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 hover:text-red-700 rounded-xl text-xs font-bold transition-all shadow-xs"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
