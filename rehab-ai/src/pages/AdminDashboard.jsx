@@ -156,7 +156,12 @@ export default function AdminDashboard() {
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           u.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    let matchesRole = true;
+    if (roleFilter === 'pending-doctor') {
+      matchesRole = u.role === 'doctor' && !u.isVerified;
+    } else if (roleFilter !== 'all') {
+      matchesRole = u.role === roleFilter;
+    }
     return matchesSearch && matchesRole;
   });
 
@@ -318,9 +323,10 @@ export default function AdminDashboard() {
                 className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-xs cursor-pointer"
               >
                 <option value="all">All Roles</option>
-                <option value="patient">Patients</option>
-                <option value="doctor">Doctors</option>
-                <option value="admin">Administrators</option>
+                <option value="pending-doctor">⏳ Pending Doctors ({pendingDoctors.length})</option>
+                <option value="doctor">🩺 Doctors Only</option>
+                <option value="patient">🏃 Patients Only</option>
+                <option value="admin">⚡ Administrators</option>
               </select>
             </div>
           </div>
@@ -414,27 +420,39 @@ export default function AdminDashboard() {
                           )}
                         </td>
 
-                        {/* Status (Clickable Toggle to Verify Doctor/User) */}
+                        {/* Status Column */}
                         <td className="py-4 px-6">
-                          <button
-                            onClick={() => handleToggleVerify(u._id, u.isVerified)}
-                            disabled={actionLoading}
-                            title={u.isVerified ? "Click to revoke verification" : "Click to approve & verify account"}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer shadow-xs ${
+                          {u.role === 'doctor' ? (
+                            <button
+                              onClick={() => handleToggleVerify(u._id, u.isVerified)}
+                              disabled={actionLoading}
+                              title={u.isVerified ? "Click to revoke doctor verification" : "Click to approve & verify doctor"}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer shadow-xs ${
+                                u.isVerified 
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' 
+                                  : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:scale-105'
+                              }`}
+                            >
+                              <span>{u.isVerified ? '✓' : '⏳'}</span>
+                              <span>{u.isVerified ? 'Verified Doctor' : 'Pending Verification'}</span>
+                            </button>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
                               u.isVerified 
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' 
-                                : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:scale-105'
-                            }`}
-                          >
-                            <span>{u.isVerified ? '✓' : '⏳'}</span>
-                            <span>{u.isVerified ? 'Verified' : 'Pending (Verify)'}</span>
-                          </button>
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
+                              <span>{u.isVerified ? '✓' : '•'}</span>
+                              <span>{u.isVerified ? 'Active' : 'Registered'}</span>
+                            </span>
+                          )}
                         </td>
 
-                        {/* Actions */}
+                        {/* Actions Column */}
                         <td className="py-4 px-6 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {!u.isVerified && (
+                            {/* Verify Doctor Button ONLY for Doctor accounts */}
+                            {u.role === 'doctor' && !u.isVerified && (
                               <button
                                 onClick={() => handleToggleVerify(u._id, u.isVerified)}
                                 disabled={actionLoading}
