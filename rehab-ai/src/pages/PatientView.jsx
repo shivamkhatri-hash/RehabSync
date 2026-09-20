@@ -17,12 +17,26 @@ import BaselineCalibrationFlow from '../components/BaselineCalibrationFlow';
 import PrivacyEdgeIndicator from '../components/PrivacyEdgeIndicator';
 
 const EXERCISE_REFS = {
+  'Bicep Curl (Standing)': {
+    joints: 'Elbow Joint',
+    cameraView: 'front',
+    desc: 'Classic standing elbow flexion targeting the biceps brachii.',
+    guidance: 'Keep your upper arm anchored vertically against your ribs. Bend elbow to 85 degrees.',
+    tip: 'Face the camera or 45° angle. Avoid swinging your elbow forward.'
+  },
+  'Bicep Curl (Horizontal Arm)': {
+    joints: 'Elbow Joint (Shoulder at 90°)',
+    cameraView: 'front',
+    desc: 'High-elevation bicep curl targeting biceps peak and shoulder stabilizers.',
+    guidance: 'Keep your upper arm horizontal at shoulder height (perpendicular to body). Bend elbow to 85 degrees.',
+    tip: 'Face the camera and avoid dropping your upper arm below shoulder level.'
+  },
   'Bicep Curl': {
     joints: 'Elbow Joint',
     cameraView: 'front',
     desc: 'Elbow flexion training targeting the biceps brachii.',
-    guidance: 'Keep your upper arm horizontal at shoulder height. Bend elbow to 90 degrees.',
-    tip: 'Face the camera and avoid dropping your upper arm below shoulder level.'
+    guidance: 'Keep your upper arm anchored against your ribs. Bend elbow smoothly.',
+    tip: 'Avoid swinging your upper arm forward or using hip momentum.'
   },
   'Push-up': {
     joints: 'Elbow & Shoulder',
@@ -153,6 +167,8 @@ const EXERCISE_REFS = {
 };
 
 const SYSTEM_DEFAULT_EXERCISES = [
+  { exerciseName: 'Bicep Curl (Standing)', successAngle: 85, failureAngle: 150, holdTime: 0, targetReps: 15, cameraView: 'front' },
+  { exerciseName: 'Bicep Curl (Horizontal Arm)', successAngle: 85, failureAngle: 150, holdTime: 0, targetReps: 15, cameraView: 'front' },
   { exerciseName: 'Bicep Curl', successAngle: 85, failureAngle: 150, holdTime: 0, targetReps: 15, cameraView: 'front' },
   { exerciseName: 'Push-up', successAngle: 105, failureAngle: 155, holdTime: 0, targetReps: 10, cameraView: 'side' },
   { exerciseName: 'Crunch', successAngle: 80, failureAngle: 115, holdTime: 2, targetReps: 12, cameraView: 'side' },

@@ -134,6 +134,8 @@ const Appointment = mongoose.model('Appointment', appointmentSchema);
 // Auto-seed exercises and test users
 const seedDatabase = async () => {
   const exercises = [
+    { name: 'Bicep Curl (Standing)', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
+    { name: 'Bicep Curl (Horizontal Arm)', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
     { name: 'Bicep Curl', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
     { name: 'Push-up', target_joints: [11, 13, 15], success_angle: 105, failure_angle: 155 },
     { name: 'Crunch', target_joints: [11, 23, 25], success_angle: 80, failure_angle: 115 },

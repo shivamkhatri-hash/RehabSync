@@ -14,6 +14,24 @@ const CLINICAL_PROTOCOLS = {
     guidance: "Keep feet shoulder-width apart. Maintain neutral spine and ensure knees track over 2nd toe.",
     holdRecommendation: "5-10s isometric hold at peak depth"
   },
+  "Bicep Curl (Standing)": {
+    joints: "Elbow Joint (Landmarks 11, 13, 15)",
+    targetROM: "45° - 85° flexion",
+    restAngle: "150° - 170° extension",
+    clinicalGoal: "Biceps brachii hypertrophy and terminal elbow flexion recovery post-immobilization",
+    contraindications: "Distal biceps tendon repair within 6 weeks",
+    guidance: "Keep humerus anchored to torso. Avoid shoulder hiking or compensatory lumbar hyperextension.",
+    holdRecommendation: "1-2s concentric pause at apex"
+  },
+  "Bicep Curl (Horizontal Arm)": {
+    joints: "Elbow & Glenohumeral (Landmarks 11, 13, 15, 23)",
+    targetROM: "45° - 85° flexion with 90° shoulder elevation",
+    restAngle: "150° - 170° extension",
+    clinicalGoal: "Biceps peak recruitment combined with dynamic rotator cuff & deltoid isometric stabilization",
+    contraindications: "Acute subacromial impingement or labral tear",
+    guidance: "Keep upper arm raised horizontally at 90° to body (shoulder height). Avoid dropping elbow.",
+    holdRecommendation: "2s isometric hold at apex"
+  },
   "Bicep Curl": {
     joints: "Elbow Joint (Landmarks 11, 13, 15)",
     targetROM: "45° - 85° flexion",
@@ -141,7 +159,7 @@ export default function DoctorDashboard() {
   const [doctorSettingsSaved, setDoctorSettingsSaved] = useState(false);
 
   const [exerciseList, setExerciseList] = useState([
-    'Mini Squat', 'Bicep Curl', 'Seated Knee Extension', 
+    'Mini Squat', 'Bicep Curl (Standing)', 'Bicep Curl (Horizontal Arm)', 'Bicep Curl', 'Seated Knee Extension', 
     'Straight Leg Raise', 'Shoulder Flexion', 'Shoulder Abduction',
     'Wall Slides', 'Calf Raise', 'Marching in Place',
     'Single-Leg Balance', 'Bird Dog', 'Push-up', 'Crunch'
@@ -275,10 +293,10 @@ export default function DoctorDashboard() {
     }
 
     // Fallback/offline presets
-    if (name === 'Bicep Curl') {
+    if (name.includes('Bicep Curl') || name.includes('bicep')) {
       setFormSuccessAngle(85);
       setFormFailureAngle(150);
-      setFormHoldTime(0);
+      setFormHoldTime(name.includes('Horizontal') ? 2 : 0);
     } else if (name === 'Mini Squat') {
       setFormSuccessAngle(125);
       setFormFailureAngle(165);

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { API_URL } from '../config';
 
 const FALLBACK_EXERCISES = [
+  { name: 'Bicep Curl (Standing)', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
+  { name: 'Bicep Curl (Horizontal Arm)', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
   { name: 'Bicep Curl', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
   { name: 'Push-up', target_joints: [11, 13, 15], success_angle: 105, failure_angle: 155 },
   { name: 'Crunch', target_joints: [11, 23, 25], success_angle: 80, failure_angle: 115 },
@@ -24,11 +26,23 @@ const FALLBACK_EXERCISES = [
 ];
 
 const EXERCISE_REFS = {
+  'Bicep Curl (Standing)': {
+    joints: 'Elbow Joint (Shoulder pinned)',
+    desc: 'Classic standing elbow flexion training targeting the biceps brachii.',
+    guidance: 'Keep your upper arm anchored vertically against your ribs. Bend elbow upwards to 85 degrees.',
+    tip: 'Avoid swinging your upper arm forward or using momentum from the hips.'
+  },
+  'Bicep Curl (Horizontal Arm)': {
+    joints: 'Elbow Joint (Shoulder at 90°)',
+    desc: 'High-elevation horizontal bicep curl targeting biceps peak and shoulder stabilizers.',
+    guidance: 'Keep your upper arm horizontal at shoulder height (perpendicular to body). Bend elbow to 85 degrees.',
+    tip: 'Face the camera and avoid dropping your elbow below shoulder level.'
+  },
   'Bicep Curl': {
     joints: 'Elbow Joint',
-    desc: 'Elbow flexion training targeting the biceps brachii.',
-    guidance: 'Keep your upper arm horizontal at shoulder height. Bend elbow to 90 degrees.',
-    tip: 'Face the camera and avoid dropping your upper arm below shoulder level.'
+    desc: 'Standard elbow flexion rehabilitation targeting biceps brachii.',
+    guidance: 'Keep your upper arm stable. Flex elbow towards peak flexion without compensations.',
+    tip: 'Maintain smooth velocity throughout concentric and eccentric phases.'
   },
   'Push-up': {
     joints: 'Elbow & Shoulder',
