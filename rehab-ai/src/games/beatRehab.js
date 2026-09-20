@@ -174,76 +174,91 @@ export const draw = (ctx, canvas, state, params) => {
     if (!note.sliced && note.x >= playerX - 40 && note.x <= playerX + 40) {
       const yDistance = Math.abs(state.playerY - note.y);
 
-      // Hit threshold: Player's blade is within 42px vertically of the incoming note
-      if (yDistance < 45 && !isPostureInvalid) {
-        note.sliced = true;
-        state.slashAnim = 12; // Trigger blade slash animation trail
-        
-        const isPerfect = yDistance < 18;
-        const basePts = note.type === 'STAR' ? 350 : (isPerfect ? 250 : 100);
-        
-        // Speed penalty multiplier
-        const speedPenalty = isTooFast ? 0.5 : 1.0;
-        const awardedPoints = Math.round(basePts * state.multiplier * speedPenalty);
+      // Hit threshold: Player's blade is within 45px vertically of the incoming note
+      if (yDistance < 45) {
+        if (isPostureInvalid) {
+          // Form compensation locks the cyber blade
+          state.combo = 0;
+          state.multiplier = 1;
+          if (state.frameIndex % 25 === 0) {
+            state.floatTexts.push({
+              x: note.x,
+              y: note.y - 25,
+              text: '⚠️ FORM LOCKED',
+              color: '#ef4444',
+              alpha: 1
+            });
+          }
+        } else {
+          note.sliced = true;
+          state.slashAnim = 12; // Trigger blade slash animation trail
+          
+          const isPerfect = yDistance < 18;
+          const basePts = note.type === 'STAR' ? 350 : (isPerfect ? 250 : 100);
+          
+          // Speed penalty multiplier
+          const speedPenalty = isTooFast ? 0.5 : 1.0;
+          const awardedPoints = Math.round(basePts * state.multiplier * speedPenalty);
 
-        state.score += awardedPoints;
-        state.combo += 1;
-        state.totalNotesSliced += 1;
-        if (isPerfect) state.perfectCount += 1;
+          state.score += awardedPoints;
+          state.combo += 1;
+          state.totalNotesSliced += 1;
+          if (isPerfect) state.perfectCount += 1;
 
-        // Combo Multipliers
-        if (state.combo >= 20) state.multiplier = 4;
-        else if (state.combo >= 10) state.multiplier = 3;
-        else if (state.combo >= 5) state.multiplier = 2;
-        else state.multiplier = 1;
+          // Combo Multipliers
+          if (state.combo >= 20) state.multiplier = 4;
+          else if (state.combo >= 10) state.multiplier = 3;
+          else if (state.combo >= 5) state.multiplier = 2;
+          else state.multiplier = 1;
 
-        // Flying Split Halves (Fling Up-Left and Down-Left)
-        state.slices.push(
-          { x: note.x, y: note.y, vx: -5, vy: -5, rot: 0, vRot: -0.2, color: note.color, alpha: 1 },
-          { x: note.x, y: note.y, vx: -3, vy: 5, rot: 0, vRot: 0.2, color: note.color, alpha: 1 }
-        );
+          // Flying Split Halves (Fling Up-Left and Down-Left)
+          state.slices.push(
+            { x: note.x, y: note.y, vx: -5, vy: -5, rot: 0, vRot: -0.2, color: note.color, alpha: 1 },
+            { x: note.x, y: note.y, vx: -3, vy: 5, rot: 0, vRot: 0.2, color: note.color, alpha: 1 }
+          );
 
-        // Expanding Shockwave Ring
-        state.rings.push({
-          x: note.x,
-          y: note.y,
-          radius: 12,
-          color: note.color,
-          alpha: 1
-        });
-
-        // Spark Particle Burst
-        for (let i = 0; i < 22; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const spd = Math.random() * 8 + 3;
-          state.particles.push({
+          // Expanding Shockwave Ring
+          state.rings.push({
             x: note.x,
             y: note.y,
-            vx: Math.cos(angle) * spd - 2,
-            vy: Math.sin(angle) * spd,
+            radius: 12,
             color: note.color,
-            alpha: 1,
-            size: Math.random() * 4 + 2
+            alpha: 1
           });
-        }
 
-        // Floating Score Indicator
-        state.floatTexts.push({
-          x: note.x,
-          y: note.y - 25,
-          text: isTooFast 
-            ? `⚠️ SLOW DOWN! +${awardedPoints}` 
-            : isPerfect ? `⚡ PERFECT SLICE! +${awardedPoints}` : `✨ SLICE! +${awardedPoints}`,
-          color: isTooFast ? '#f59e0b' : (isPerfect ? '#00f0ff' : '#ff007f'),
-          alpha: 1
-        });
+          // Spark Particle Burst
+          for (let i = 0; i < 22; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const spd = Math.random() * 8 + 3;
+            state.particles.push({
+              x: note.x,
+              y: note.y,
+              vx: Math.cos(angle) * spd - 2,
+              vy: Math.sin(angle) * spd,
+              color: note.color,
+              alpha: 1,
+              size: Math.random() * 4 + 2
+            });
+          }
 
-        // Count clinical repetition every 2 successful rhythm slices
-        if (state.totalNotesSliced % 2 === 0) {
-          if (repsRef && setReps) {
-            repsRef.current += 1;
-            setReps(repsRef.current);
-            if (speakText) speakText(`Rep ${repsRef.current}`);
+          // Floating Score Indicator
+          state.floatTexts.push({
+            x: note.x,
+            y: note.y - 25,
+            text: isTooFast 
+              ? `⚠️ SLOW DOWN! +${awardedPoints}` 
+              : isPerfect ? `⚡ PERFECT SLICE! +${awardedPoints}` : `✨ SLICE! +${awardedPoints}`,
+            color: isTooFast ? '#f59e0b' : (isPerfect ? '#00f0ff' : '#ff007f'),
+            alpha: 1
+          });
+
+          // Count clinical repetition every 2 successful rhythm slices
+          if (state.totalNotesSliced % 2 === 0) {
+            if (repsRef && setReps) {
+              repsRef.current += 1;
+              setReps(repsRef.current);
+              if (speakText) speakText(`Rep ${repsRef.current}`);
+            }
           }
         }
       }

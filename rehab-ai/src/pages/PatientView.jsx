@@ -8,125 +8,144 @@ import * as flappyRehab from '../games/flappyRehab';
 import * as mannequinTracker from '../games/mannequinTracker';
 import * as shadowMatch from '../games/shadowMatch';
 import * as beatRehab from '../games/beatRehab';
-
-const calculateAngle = (a, b, c) => {
-  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-  let angle = Math.abs((radians * 180.0) / Math.PI);
-  if (angle > 180.0) angle = 360 - angle;
-  return angle;
-};
+import { BiomechanicsEngine, calculateAngle, getTorsoAngle } from '../utils/biomechanicsEngine';
+import { runPreExerciseCalibration } from '../utils/calibrationEngine';
+import BiomechanicsDebugOverlay from '../components/BiomechanicsDebugOverlay';
+import PoseQualityBanner from '../components/PoseQualityBanner';
+import PreExerciseCalibrationModal from '../components/PreExerciseCalibrationModal';
+import BaselineCalibrationFlow from '../components/BaselineCalibrationFlow';
+import PrivacyEdgeIndicator from '../components/PrivacyEdgeIndicator';
 
 const EXERCISE_REFS = {
   'Bicep Curl': {
     joints: 'Elbow Joint',
+    cameraView: 'front',
     desc: 'Elbow flexion training targeting the biceps brachii.',
     guidance: 'Keep your upper arm horizontal at shoulder height. Bend elbow to 90 degrees.',
     tip: 'Face the camera and avoid dropping your upper arm below shoulder level.'
   },
   'Push-up': {
     joints: 'Elbow & Shoulder',
+    cameraView: 'side',
     desc: 'Upper body pushing movement targeting chest and triceps.',
     guidance: 'Keep your torso straight and lower your chest until elbows bend to 90°.',
     tip: 'Maintain a tight core and prevent your hips from sagging.'
   },
   'Crunch': {
     joints: 'Thoracic / Core',
+    cameraView: 'side',
     desc: 'Abdominal contraction targeting rectus abdominis.',
     guidance: 'Lie on your back, knees bent, and raise your upper trunk towards your knees.',
     tip: 'Do not pull your neck with your hands. Focus on core contractions.'
   },
   'Seated Knee Extension': {
     joints: 'Knee Joint',
+    cameraView: 'side',
     desc: 'Quadriceps strength training for active knee extension.',
     guidance: 'Sit upright and slowly straighten your knee completely to full extension.',
     tip: 'Use a side view showing your hip, knee, and ankle clearly.'
   },
   'Straight Leg Raise': {
     joints: 'Hip & Knee',
+    cameraView: 'side',
     desc: 'Hip flexor and quadriceps rehab with straight leg elevation.',
     guidance: 'Lie flat, keep the target leg fully straight, and raise it 45 degrees.',
     tip: 'Ensure the knee does not bend during the lift.'
   },
   'Mini Squat': {
     joints: 'Knee & Hip',
+    cameraView: 'side',
     desc: 'Functional partial squat training targeting quads and glutes.',
     guidance: 'Lower your hips slightly as if sitting down, keeping knees behind toes.',
     tip: 'Align the camera to capture a side profile of your lower body.'
   },
   'Sit-to-Stand': {
     joints: 'Full Lower Body',
+    cameraView: 'side',
     desc: 'Functional mobility training transferring from seated to standing.',
     guidance: 'Stand up fully from a chair and sit back down slowly with control.',
     tip: 'Do not use your arms to push off if you are building pure leg strength.'
   },
   'Standing Knee Flexion': {
     joints: 'Knee / Hamstring',
+    cameraView: 'side',
     desc: 'Knee flexion stretching targeting the hamstring muscle group.',
     guidance: 'Stand tall and bend your knee backwards, bringing your heel towards your glutes.',
     tip: 'Keep your thighs parallel to each other during the flexion.'
   },
   'Standing Hip Abduction': {
     joints: 'Hip Joint',
+    cameraView: 'front',
     desc: 'Lateral hip extension targeting gluteus medius strength.',
     guidance: 'Stand tall and raise the target leg sideways away from the body.',
     tip: 'Keep your trunk vertical; avoid leaning to the opposite side.'
   },
   'Standing Hip Flexion': {
     joints: 'Hip Joint',
+    cameraView: 'side',
     desc: 'Anterior hip elevation targeting hip flexors.',
     guidance: 'Stand straight and raise your knee forward to a 90-degree angle.',
     tip: 'Keep your standing leg fully straight and active.'
   },
   'Shoulder Flexion': {
     joints: 'Shoulder Joint',
+    cameraView: 'side',
     desc: 'Anterior shoulder mobility lift targeting deltoids.',
     guidance: 'Slowly raise your arm straight forward and upward overhead.',
     tip: 'Maintain a side-view profile relative to the camera.'
   },
   'Shoulder Abduction': {
     joints: 'Shoulder Joint',
+    cameraView: 'front',
     desc: 'Lateral shoulder mobility lift targeting middle deltoids.',
     guidance: 'Raise your arm straight out to the side until it is parallel to the ground.',
     tip: 'Face the camera directly with both shoulders visible.'
   },
   'Wall Slides': {
     joints: 'Shoulders & Upper Back',
+    cameraView: 'front',
     desc: 'Scapular stability training sliding arms against vertical surface.',
     guidance: 'Keep your back and arms flat against the wall, sliding elbows upward.',
     tip: 'Keep both shoulder blades pinned to the surface to optimize scapular glide.'
   },
   'Calf Raise': {
     joints: 'Ankle / Calf',
+    cameraView: 'side',
     desc: 'Ankle plantarflexion training targeting gastrocnemius.',
     guidance: 'Stand tall and raise up onto the balls of your feet, lifting heels high.',
     tip: 'Lower down slowly to engage eccentric calf control.'
   },
   'Marching in Place': {
     joints: 'Full Lower Body',
+    cameraView: 'front',
     desc: 'Rhythmic gait and balance coordination training.',
     guidance: 'Alternate raising each knee to hip level in a steady marching rhythm.',
     tip: 'Keep the chest upright and pump arms lightly for balance.'
   },
   'Single-Leg Balance': {
     joints: 'Ankle & Hip Core',
+    cameraView: 'front',
     desc: 'Proprioceptive balance training on a single limb.',
     guidance: 'Raise one foot off the ground and maintain a steady standing posture.',
     tip: 'Focus your gaze on a fixed point ahead to stabilize balance.'
   },
   'Bird Dog': {
     joints: 'Core & Spine',
+    cameraView: 'side',
     desc: 'Contralateral limb extensions for core and spinal stability.',
     guidance: 'On all fours, extend one arm forward and the opposite leg straight back.',
     tip: 'Keep your neck neutral and your hips square to the ground.'
   },
   'Squat': {
     joints: 'Knees, Hips & Glutes',
+    cameraView: 'side',
     desc: 'Standard deep squat for lower body strength and range of motion.',
     guidance: 'Lower hips backward while bending knees to a target flexion angle.',
     tip: 'Keep your weight in your heels and your chest proud.'
   },
   'Lunge': {
     joints: 'Hips & Knees',
+    cameraView: 'side',
     desc: 'Unilateral forward stepping leg rehabilitation.',
     guidance: 'Step forward and lower hips until your back knee almost touches the floor.',
     tip: 'Ensure your front knee does not overshoot your ankle.'
@@ -134,32 +153,26 @@ const EXERCISE_REFS = {
 };
 
 const SYSTEM_DEFAULT_EXERCISES = [
-  { exerciseName: 'Bicep Curl', successAngle: 85, failureAngle: 150, holdTime: 0, targetReps: 15 },
-  { exerciseName: 'Push-up', successAngle: 105, failureAngle: 155, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Crunch', successAngle: 80, failureAngle: 115, holdTime: 2, targetReps: 12 },
-  { exerciseName: 'Seated Knee Extension', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Straight Leg Raise', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Mini Squat', successAngle: 125, failureAngle: 165, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Sit-to-Stand', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Standing Knee Flexion', successAngle: 100, failureAngle: 165, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Standing Hip Abduction', successAngle: 0.28, failureAngle: 0.05, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Standing Hip Flexion', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Shoulder Flexion', successAngle: 105, failureAngle: 20, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Shoulder Abduction', successAngle: 95, failureAngle: 20, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Wall Slides', successAngle: 100, failureAngle: 25, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Calf Raise', successAngle: 0.07, failureAngle: 0.025, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Marching in Place', successAngle: 120, failureAngle: 160, holdTime: 0, targetReps: 15 },
-  { exerciseName: 'Single-Leg Balance', successAngle: 0.10, failureAngle: 0.02, holdTime: 5, targetReps: 5 },
-  { exerciseName: 'Bird Dog', successAngle: 0.80, failureAngle: 0.45, holdTime: 5, targetReps: 5 },
-  { exerciseName: 'Squat', successAngle: 100, failureAngle: 165, holdTime: 0, targetReps: 10 },
-  { exerciseName: 'Lunge', successAngle: 105, failureAngle: 160, holdTime: 0, targetReps: 10 }
+  { exerciseName: 'Bicep Curl', successAngle: 85, failureAngle: 150, holdTime: 0, targetReps: 15, cameraView: 'front' },
+  { exerciseName: 'Push-up', successAngle: 105, failureAngle: 155, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Crunch', successAngle: 80, failureAngle: 115, holdTime: 2, targetReps: 12, cameraView: 'side' },
+  { exerciseName: 'Seated Knee Extension', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Straight Leg Raise', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Mini Squat', successAngle: 125, failureAngle: 165, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Sit-to-Stand', successAngle: 160, failureAngle: 105, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Standing Knee Flexion', successAngle: 100, failureAngle: 165, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Standing Hip Abduction', successAngle: 0.28, failureAngle: 0.05, holdTime: 0, targetReps: 10, cameraView: 'front' },
+  { exerciseName: 'Standing Hip Flexion', successAngle: 115, failureAngle: 165, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Shoulder Flexion', successAngle: 105, failureAngle: 20, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Shoulder Abduction', successAngle: 95, failureAngle: 20, holdTime: 0, targetReps: 10, cameraView: 'front' },
+  { exerciseName: 'Wall Slides', successAngle: 100, failureAngle: 25, holdTime: 0, targetReps: 10, cameraView: 'front' },
+  { exerciseName: 'Calf Raise', successAngle: 0.07, failureAngle: 0.025, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Marching in Place', successAngle: 120, failureAngle: 160, holdTime: 0, targetReps: 15, cameraView: 'front' },
+  { exerciseName: 'Single-Leg Balance', successAngle: 0.10, failureAngle: 0.02, holdTime: 5, targetReps: 5, cameraView: 'front' },
+  { exerciseName: 'Bird Dog', successAngle: 0.80, failureAngle: 0.45, holdTime: 5, targetReps: 5, cameraView: 'side' },
+  { exerciseName: 'Squat', successAngle: 100, failureAngle: 165, holdTime: 0, targetReps: 10, cameraView: 'side' },
+  { exerciseName: 'Lunge', successAngle: 105, failureAngle: 160, holdTime: 0, targetReps: 10, cameraView: 'side' }
 ];
-
-const getTorsoAngle = (shoulder, hip) => {
-  const dx = shoulder.x - hip.x;
-  const dy = shoulder.y - hip.y;
-  return (Math.atan2(Math.abs(dx), Math.abs(dy)) * 180) / Math.PI;
-};
 
 const normalizeKey = (name) => {
   return name.trim().toLowerCase().replace(/-/g, ' ').replace(/_/g, ' ').replace(/\s+/g, '_');
@@ -403,6 +416,18 @@ export default function PatientView() {
   const hasCountedRepRef = useRef(false);
   const lastSpokenRef = useRef(0);
   const lastPostureSpokenRef = useRef(0);
+
+  // Biomechanics Engine Ref & Live Diagnostics
+  const biomechanicsEngineRef = useRef(new BiomechanicsEngine());
+  const [engineOutput, setEngineOutput] = useState(null);
+  const lastOverlayUpdateRef = useRef(0);
+
+  // Calibration & Baseline States (Phase 2)
+  const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [showBaselineModal, setShowBaselineModal] = useState(false);
+  const [calibrationResult, setCalibrationResult] = useState(null);
+  const [personalBaselineRom, setPersonalBaselineRom] = useState(null);
+  const lastCalibrationCheckRef = useRef(0);
   
   // Game state representation stored in refs to prevent React state update lag in loop
   const gameStateRef = useRef({
@@ -556,6 +581,7 @@ export default function PatientView() {
       gameStateRef.current = { ...gameStateRef.current, ...beatRehab.init() };
     }
     
+    biomechanicsEngineRef.current.reset();
     repsRef.current = 0;
     setReps(0);
     holdStartRef.current = null;
@@ -575,14 +601,6 @@ export default function PatientView() {
         const startTimeMs = performance.now();
         const results = poseLandmarker.detectForVideo(video, startTimeMs);
 
-        // Core joint angle calculation
-        let liveAngleVal = 0;
-        let isSuccessZone = false;
-        let isResetZone = false;
-        let detectedLandmarks = null;
-        let isPostureInvalid = false;
-        let postureAlert = "";
-
         // Resolve target joints dynamically based on chosen side selection and configuration
         let resolvedJoints = [];
         if (currentExercise.bilateral || currentExercise.landmark_sets.length === 1) {
@@ -591,140 +609,89 @@ export default function PatientView() {
           resolvedJoints = selectedArm === 'right' ? currentExercise.landmark_sets[1] : currentExercise.landmark_sets[0];
         }
 
-        if (results.landmarks && results.landmarks.length > 0) {
-          detectedLandmarks = results.landmarks[0];
-          const [j1, j2, j3] = resolvedJoints;
-          const pt1 = detectedLandmarks[j1];
-          const pt2 = detectedLandmarks[j2];
-          const pt3 = detectedLandmarks[j3];
+        let detectedLandmarks = results.landmarks && results.landmarks.length > 0 ? results.landmarks[0] : null;
+        let liveAngleVal = 0;
+        let isPostureInvalid = false;
+        let postureAlert = "";
 
-          if (pt1 && pt2 && pt3 && pt1.visibility > 0.60 && pt2.visibility > 0.60 && pt3.visibility > 0.60) {
-            const angle = calculateAngle(pt1, pt2, pt3);
-            liveAngleVal = Math.round(angle);
-            setArmAngle(liveAngleVal);
+        if (detectedLandmarks) {
+          // Process frame through the Biomechanics Engine (Smoothing, Multi-Joint Check, FSM, Temporal Rep Validation)
+          const engineRes = biomechanicsEngineRef.current.processFrame({
+            rawLandmarks: detectedLandmarks,
+            resolvedJoints,
+            exerciseConfig: currentExercise,
+            selectedArm,
+            timestamp: startTimeMs
+          });
 
-            // Flexion vs Extension evaluation directions dynamically using target_direction
-            const success = currentExercise.success_angle;
-            const failure = currentExercise.failure_angle;
-            const direction = currentExercise.target_direction || (success > failure ? 'increase' : 'decrease');
-            
-            if (direction === 'increase') {
-              isSuccessZone = angle >= success;
-              isResetZone = angle <= failure;
-            } else {
-              isSuccessZone = angle <= success;
-              isResetZone = angle >= failure;
+          detectedLandmarks = engineRes.smoothedLandmarks || detectedLandmarks;
+          liveAngleVal = engineRes.filteredAngle;
+          setArmAngle(liveAngleVal);
+
+          isPostureInvalid = engineRes.formCheck.isCompensating;
+          postureAlert = engineRes.diagnostics.explainableAlert;
+
+          // Pre-Exercise Camera Calibration evaluator (Phase 2)
+          if (showCalibrationModal && startTimeMs - lastCalibrationCheckRef.current > 80) {
+            lastCalibrationCheckRef.current = startTimeMs;
+            const calRes = runPreExerciseCalibration({
+              landmarks: detectedLandmarks,
+              requiredJoints: resolvedJoints,
+              requiredCameraView: currentExercise.cameraView || 'front'
+            });
+            setCalibrationResult(calRes);
+          }
+
+          // Throttled UI overlay state sync for 60fps performance
+          if (startTimeMs - lastOverlayUpdateRef.current > 40) {
+            lastOverlayUpdateRef.current = startTimeMs;
+            setEngineOutput(engineRes);
+          }
+
+          // Handle multi-joint posture compensation warning audio
+          if (isPostureInvalid && postureAlert) {
+            speakPostureAlert(postureAlert);
+          }
+
+          // Handle rep completion from temporal state machine
+          if (engineRes.repCompleted) {
+            if (gameMode !== 'flappy') {
+              repsRef.current = engineRes.repCount;
+              setReps(engineRes.repCount);
+              speakText(`Rep ${engineRes.repCount} counted.`);
             }
 
-            // Posture Form Validation Check
-            const nameKey = normalizeKey(currentExercise.name);
-            if (nameKey.includes("bicep")) {
-              const hip = detectedLandmarks[selectedArm === 'right' ? 24 : 23];
-              const shoulder = detectedLandmarks[selectedArm === 'right' ? 12 : 11];
-              const elbow = detectedLandmarks[selectedArm === 'right' ? 14 : 13];
-              const wrist = detectedLandmarks[selectedArm === 'right' ? 16 : 15];
-              
-              if (hip && shoulder && elbow && hip.visibility > 0.50 && shoulder.visibility > 0.50 && elbow.visibility > 0.50) {
-                const torsoAngle = getTorsoAngle(shoulder, hip);
-
-                if (torsoAngle > 25) {
-                  isPostureInvalid = true;
-                  postureAlert = "Keep your body straight!";
-                } else if (nameKey.includes("shoulder")) {
-                  if (wrist && wrist.visibility > 0.50) {
-                    const elbowAngle = calculateAngle(shoulder, elbow, wrist);
-                    if (Math.abs(elbowAngle - 90) > 15) {
-                      isPostureInvalid = true;
-                      postureAlert = "Keep your elbow at 90 degrees!";
-                    }
-                  }
-                } else {
-                  const armSwingAngle = calculateAngle(hip, shoulder, elbow);
-                  if (armSwingAngle < 70 || armSwingAngle > 110) {
-                    isPostureInvalid = true;
-                    postureAlert = "Keep your upper arm horizontal!";
-                  }
-                }
-              }
-            } else {
-              // Generic straight torso check for other exercises
-              const hip = detectedLandmarks[selectedArm === 'right' ? 24 : 23];
-              const shoulder = detectedLandmarks[selectedArm === 'right' ? 12 : 11];
-              if (hip && shoulder && hip.visibility > 0.50 && shoulder.visibility > 0.50) {
-                const torsoAngle = getTorsoAngle(shoulder, hip);
-                if (torsoAngle > 30) {
-                  isPostureInvalid = true;
-                  postureAlert = "Keep your body straight!";
-                }
-              }
+            // Trigger visual action rewards in specific games
+            if (gameMode === 'zen') {
+              gameStateRef.current.flowers.push({
+                x: canvas.width / 2 + (Math.random() * 120 - 60),
+                y: canvas.height - gameStateRef.current.plantHeight + (Math.random() * 40 - 20),
+                color: `hsl(${Math.random() * 90 + 320}, 90%, 65%)`,
+                scale: 0.1
+              });
+              gameStateRef.current.plantHeight += 12;
             }
+          }
 
-            if (isPostureInvalid) {
-              isSuccessZone = false; // Block target angle matches if posture is incorrect
-              speakPostureAlert(postureAlert);
-
-              // Reset hold progress if posture becomes invalid during hold
-              holdStartRef.current = null;
-              setIsHolding(false);
-              setHoldTimeLeft(currentExercise.holdTime || 0);
-              if (gameStateRef.current) {
-                gameStateRef.current.bloomPercentage = 0;
-              }
+          // Handle hold duration state & visual progress
+          if (engineRes.isHolding) {
+            setIsHolding(true);
+            const heldSec = (startTimeMs - (biomechanicsEngineRef.current.targetHoldStart || startTimeMs)) / 1000;
+            const remaining = Math.max(0, (currentExercise.holdTime || 0) - heldSec);
+            setHoldTimeLeft(Math.round(remaining));
+            if (gameStateRef.current) {
+              gameStateRef.current.bloomPercentage = Math.min(100, engineRes.holdProgress * 100);
             }
-
-            // Rep and Hold Time logic
-            if (isSuccessZone) {
-              if (!holdStartRef.current) {
-                holdStartRef.current = Date.now();
-                setIsHolding(true);
-                if (currentExercise.holdTime > 0) {
-                  speakText("Hold it!");
-                }
-              } else {
-                const heldSec = (Date.now() - holdStartRef.current) / 1000;
-                const remaining = Math.max(0, currentExercise.holdTime - heldSec);
-                setHoldTimeLeft(Math.round(remaining));
-                
-                // Track visual progression
-                gameStateRef.current.bloomPercentage = Math.min(100, (heldSec / (currentExercise.holdTime || 1)) * 100);
-
-                if (heldSec >= (currentExercise.holdTime || 0)) {
-                  if (!hasCountedRepRef.current) {
-                    if (gameMode !== 'flappy') {
-                      repsRef.current += 1;
-                      setReps(repsRef.current);
-                      speakText(`Rep ${repsRef.current} counted.`);
-                    }
-                    hasCountedRepRef.current = true;
-
-                    // Trigger action triggers in specific games
-                    if (gameMode === 'zen') {
-                      gameStateRef.current.flowers.push({
-                        x: canvas.width / 2 + (Math.random() * 120 - 60),
-                        y: canvas.height - gameStateRef.current.plantHeight + (Math.random() * 40 - 20),
-                        color: `hsl(${Math.random() * 90 + 320}, 90%, 65%)`,
-                        scale: 0.1
-                      });
-                      gameStateRef.current.plantHeight += 12;
-                    } else if (gameMode === 'runner') {
-                      if (gameStateRef.current.runnerY === 0) {
-                        gameStateRef.current.runnerJumpVelocity = 11;
-                      }
-                    }
-                  }
-                }
-              }
-            } else if (isResetZone) {
-              holdStartRef.current = null;
-              setIsHolding(false);
-              setHoldTimeLeft(currentExercise.holdTime || 0);
-              hasCountedRepRef.current = false;
+          } else {
+            setIsHolding(false);
+            setHoldTimeLeft(currentExercise.holdTime || 0);
+            if (gameStateRef.current) {
               gameStateRef.current.bloomPercentage = 0;
             }
           }
-          
+
           totalFramesRef.current += 1;
-          if (!isPostureInvalid) {
+          if (!isPostureInvalid && engineRes.poseQuality.isValid) {
             validFramesRef.current += 1;
           }
         }
@@ -769,7 +736,8 @@ export default function PatientView() {
           else if (gameMode === 'zen') {
             zenBloom.draw(ctxGame, gameCanvas, gameStateRef.current, {
               video: null, // Disable mini camera inside game view to prevent duplication
-              isHolding
+              isHolding,
+              isPostureInvalid
             });
           } 
           
@@ -922,17 +890,53 @@ export default function PatientView() {
       const validF = validFramesRef.current;
       const successRateCalc = totalF > 0 ? Math.round((validF / totalF) * 100) : 100;
 
+      // Extract comprehensive clinical session metrics from BiomechanicsEngine
+      const engine = biomechanicsEngineRef.current;
+      const romMax = engine.maxAngleSeen || armAngle;
+      const romMin = engine.minAngleSeen === 999 ? 0 : engine.minAngleSeen;
+      const romAvg = engine.repAngleHistory.length > 0 
+        ? Math.round(engine.repAngleHistory.reduce((a, b) => a + (b.maxRom || 0), 0) / engine.repAngleHistory.length)
+        : armAngle;
+      const validReps = engine.repCount || reps;
+      const invalidReps = engine.invalidRepCount || 0;
+      const formViolations = Array.from(new Set(engine.formViolationsLog.map(v => v.message || 'Form compensation')));
+      const formViolationsCount = engine.formViolationsLog.length;
+
+      // Consistency score (0-100%)
+      let consistencyScore = 100;
+      if (engine.repAngleHistory.length >= 2) {
+        const durations = engine.repAngleHistory.map(r => r.durationMs);
+        const meanDur = durations.reduce((a, b) => a + b, 0) / durations.length;
+        const variance = durations.reduce((a, b) => a + Math.pow(b - meanDur, 2), 0) / durations.length;
+        const stdDev = Math.sqrt(variance);
+        consistencyScore = Math.max(60, Math.min(100, Math.round(100 - (stdDev / 80))));
+      }
+
+      const completionPct = currentExercise.targetReps > 0
+        ? Math.min(100, Math.round((validReps / currentExercise.targetReps) * 100))
+        : 100;
+
       const response = await fetch(`${API_URL}/api/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientId: user.id,
           exerciseName: currentExercise.name,
-          reps_completed: reps,
-          max_angle_achieved: armAngle,
+          reps_completed: validReps,
+          max_angle_achieved: romMax,
           gamePlayed: modeNames[gameMode],
           hold_time_achieved: currentExercise.holdTime || 0,
-          success_rate: successRateCalc
+          success_rate: successRateCalc,
+          rom_max: romMax,
+          rom_min: romMin,
+          rom_average: romAvg,
+          valid_reps: validReps,
+          invalid_reps: invalidReps,
+          form_violations_count: formViolationsCount,
+          form_violations: formViolations,
+          consistency_score: consistencyScore,
+          completion_percentage: completionPct,
+          baseline_rom: personalBaselineRom || currentExercise.success_angle
         })
       });
       if (response.ok) {
@@ -1504,10 +1508,13 @@ export default function PatientView() {
                    </div>
                 </div>
 
-                {/* Start Training Button */}
+                {/* Start Training Button with Calibration Modal Trigger */}
                 {currentExercise && (
                   <button 
-                    onClick={() => setMode('scanner')}
+                    onClick={() => {
+                      setMode('scanner');
+                      setShowCalibrationModal(true);
+                    }}
                     className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-4 rounded-2xl shadow-md shadow-teal-600/10 transition-colors flex items-center justify-center gap-2 text-sm"
                   >
                     <span>Start AI Gaming Rehab Session</span> &rarr;
@@ -1986,7 +1993,7 @@ export default function PatientView() {
                   </div>
                 </div>
 
-                {/* Sessions Table */}
+                {/* Sessions Table with Clinical Analytics */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -1994,8 +2001,9 @@ export default function PatientView() {
                         <th className="pb-3 pr-2">Date & Time</th>
                         <th className="pb-3 pr-2">Exercise</th>
                         <th className="pb-3 pr-2">Game Interface</th>
-                        <th className="pb-3 pr-2 text-center">Reps</th>
-                        <th className="pb-3 pr-2 text-center">Max ROM</th>
+                        <th className="pb-3 pr-2 text-center">Valid Reps</th>
+                        <th className="pb-3 pr-2 text-center">ROM Range</th>
+                        <th className="pb-3 pr-2 text-center">Consistency</th>
                         <th className="pb-3 text-center">Form Accuracy</th>
                       </tr>
                     </thead>
@@ -2013,6 +2021,10 @@ export default function PatientView() {
                         else if (session.gamePlayed?.includes('Mannequin')) gameIcon = '🧊';
                         else if (session.gamePlayed?.includes('Shadow')) gameIcon = '👤';
 
+                        const minRom = session.rom_min !== undefined ? session.rom_min : '-';
+                        const maxRom = session.rom_max !== undefined ? session.rom_max : Math.round(session.max_angle_achieved || 0);
+                        const consistency = session.consistency_score || 95;
+
                         return (
                           <tr key={idx} className="text-slate-600 hover:bg-slate-50/50 transition-colors">
                             <td className="py-3.5 pr-2">
@@ -2024,6 +2036,9 @@ export default function PatientView() {
                               {session.hold_time_achieved > 0 && (
                                 <span className="text-[10px] text-indigo-600 font-semibold">⏱ {session.hold_time_achieved}s Hold</span>
                               )}
+                              {session.form_violations_count > 0 && (
+                                <span className="text-[9px] text-rose-500 block font-semibold">⚠️ {session.form_violations_count} compensations</span>
+                              )}
                             </td>
                             <td className="py-3.5 pr-2">
                               <span className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-[11px] font-medium text-slate-700">
@@ -2033,11 +2048,19 @@ export default function PatientView() {
                             </td>
                             <td className="py-3.5 pr-2 text-center">
                               <span className="font-black text-teal-600 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-xl">
-                                {session.reps_completed}
+                                {session.valid_reps || session.reps_completed}
                               </span>
+                              {session.invalid_reps > 0 && (
+                                <span className="text-[9px] text-amber-500 block font-medium">({session.invalid_reps} rushed)</span>
+                              )}
                             </td>
                             <td className="py-3.5 pr-2 text-center font-mono font-bold text-slate-700">
-                              {Math.round(session.max_angle_achieved || 0)}°
+                              {minRom !== '-' ? `${minRom}° - ${maxRom}°` : `${maxRom}°`}
+                            </td>
+                            <td className="py-3.5 pr-2 text-center">
+                              <span className="inline-block font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-lg text-[10px]">
+                                {consistency}%
+                              </span>
                             </td>
                             <td className="py-3.5 text-center">
                               <span className={`inline-block font-black px-2.5 py-1 rounded-xl border text-[11px] ${accBadge}`}>
@@ -2049,7 +2072,7 @@ export default function PatientView() {
                       })}
                       {filteredSessions.length === 0 && (
                         <tr>
-                          <td colSpan="6" className="py-8 text-center text-slate-400 space-y-2">
+                          <td colSpan="7" className="py-8 text-center text-slate-400 space-y-2">
                             <p className="font-bold text-xs">No matching workout sessions found.</p>
                             {(statsSearch || statsFilterEx !== 'all' || statsFilterGame !== 'all') && (
                               <button 
@@ -2069,6 +2092,7 @@ export default function PatientView() {
                     </tbody>
                   </table>
                 </div>
+
               </div>
 
             </div>
@@ -2125,10 +2149,60 @@ export default function PatientView() {
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
       
+      {/* Edge-Processing Privacy Assurance Indicator */}
+      <PrivacyEdgeIndicator />
+
+      {/* Pre-Exercise Camera Calibration Modal */}
+      <PreExerciseCalibrationModal
+        isOpen={showCalibrationModal}
+        calibrationResult={calibrationResult}
+        exerciseName={currentExercise?.name}
+        requiredCameraView={currentExercise?.cameraView || 'front'}
+        onProceedToWorkout={() => setShowCalibrationModal(false)}
+        onProceedToBaseline={() => {
+          setShowCalibrationModal(false);
+          setShowBaselineModal(true);
+        }}
+        onCancel={() => {
+          setShowCalibrationModal(false);
+          setMode('dashboard');
+        }}
+      />
+
+      {/* 3-Rep Baseline Active ROM Calibration Wizard */}
+      <BaselineCalibrationFlow
+        isOpen={showBaselineModal}
+        currentAngle={armAngle}
+        exerciseName={currentExercise?.name}
+        prescribedTarget={currentExercise?.success_angle}
+        targetDirection={currentExercise?.target_direction || (currentExercise?.success_angle > currentExercise?.failure_angle ? 'increase' : 'decrease')}
+        engineOutput={engineOutput}
+        onBaselineComplete={(adaptedTarget, baselineRom) => {
+          if (adaptedTarget) {
+            setCurrentExercise(prev => ({ ...prev, success_angle: adaptedTarget }));
+          }
+          setPersonalBaselineRom(baselineRom);
+          setShowBaselineModal(false);
+        }}
+        onCancel={() => setShowBaselineModal(false)}
+      />
+
+      {/* Pose Quality Guidance Banner */}
+      <PoseQualityBanner poseQuality={engineOutput?.poseQuality} />
+
+      {/* Real-Time Biomechanics Diagnostic HUD Overlay */}
+      <BiomechanicsDebugOverlay
+        engineOutput={engineOutput}
+        targetAngle={currentExercise?.success_angle}
+        failureAngle={currentExercise?.failure_angle}
+        holdDuration={currentExercise?.holdTime}
+        exerciseName={currentExercise?.name}
+      />
+
       {/* Back Button */}
       <button 
         onClick={() => setMode('dashboard')}
-        className="absolute top-6 left-6 text-slate-400 hover:text-white font-bold text-sm bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl transition-all"
+        className="absolute top-6 left-6 text-slate-400 hover:text-white font-bold text-sm bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl transition-all z-30"
       >
         &larr; Exit to Dashboard
       </button>
@@ -2136,7 +2210,7 @@ export default function PatientView() {
       {/* Audio toggle overlay */}
       <button 
         onClick={() => setIsMuted(!isMuted)}
-        className="absolute top-6 right-6 text-slate-400 hover:text-white font-bold text-xs bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl transition-all"
+        className="absolute top-6 right-64 text-slate-400 hover:text-white font-bold text-xs bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl transition-all z-30"
       >
         {isMuted ? '🔇 Audio Off' : '🔊 Audio On'}
       </button>

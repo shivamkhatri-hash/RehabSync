@@ -7,6 +7,7 @@ import DoctorDashboard from './pages/DoctorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Library from './pages/Library';
 import ForDoctors from './pages/ForDoctors';
+import AccuracyBench from './pages/AccuracyBench';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/library" element={<Library />} />
         <Route path="/for-doctors" element={<ForDoctors />} />
+        <Route path="/accuracy-bench" element={<AccuracyBench />} />
       </Routes>
     </Router>
   );

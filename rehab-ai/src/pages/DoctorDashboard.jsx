@@ -92,12 +92,16 @@ export default function DoctorDashboard() {
   const [patientDirectoryFilter, setPatientDirectoryFilter] = useState('all'); // 'all', 'active', 'pending'
   const [activeTab, setActiveTab] = useState('Dashboard'); // 'Dashboard', 'Patients', 'Schedule', 'Reports', 'Settings', 'Messages'
 
-  // Prescription Form State (Mapped to sliders)
+  // Prescription Form State (Mapped to sliders & clinical toggles)
   const [formExercise, setFormExercise] = useState('Mini Squat');
   const [formReps, setFormReps] = useState(15);
   const [formSuccessAngle, setFormSuccessAngle] = useState(135);
   const [formFailureAngle, setFormFailureAngle] = useState(165);
   const [formHoldTime, setFormHoldTime] = useState(10);
+  const [formSide, setFormSide] = useState('bilateral'); // 'left', 'right', 'bilateral'
+  const [formCameraView, setFormCameraView] = useState('front'); // 'front', 'side', '45deg'
+  const [formTolerance, setFormTolerance] = useState(10); // 5, 10, 15 degrees
+  const [formCompensationRules, setFormCompensationRules] = useState(['no_torso_lean', 'no_shoulder_hike']);
   const [prescribedList, setPrescribedList] = useState([]);
 
   // Modals & Interactive Overlays
@@ -319,7 +323,11 @@ export default function DoctorDashboard() {
       targetReps: formReps,
       successAngle: formSuccessAngle,
       failureAngle: formFailureAngle,
-      holdTime: formHoldTime
+      holdTime: formHoldTime,
+      side: formSide,
+      cameraView: formCameraView,
+      tolerance: formTolerance,
+      compensationRules: formCompensationRules
     };
     // Replace if exists, or append
     const existingIdx = prescribedList.findIndex(e => e.exerciseName === formExercise);
@@ -343,7 +351,11 @@ export default function DoctorDashboard() {
         targetReps: formReps,
         successAngle: formSuccessAngle,
         failureAngle: formFailureAngle,
-        holdTime: formHoldTime
+        holdTime: formHoldTime,
+        side: formSide,
+        cameraView: formCameraView,
+        tolerance: formTolerance,
+        compensationRules: formCompensationRules
       }];
 
       const response = await fetch(`${API_URL}/api/prescriptions`, {
@@ -1507,6 +1519,56 @@ export default function DoctorDashboard() {
                 </select>
               </div>
 
+              {/* Side Selection */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Target Body Side</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'left', label: 'Left' },
+                    { id: 'right', label: 'Right' },
+                    { id: 'bilateral', label: 'Bilateral' }
+                  ].map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setFormSide(s.id)}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border ${
+                        formSide === s.id
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Camera View Orientation */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Prescribed Camera Angle</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'front', label: 'Front (0°)' },
+                    { id: 'side', label: 'Sagittal (90°)' },
+                    { id: '45deg', label: 'Oblique (45°)' }
+                  ].map(v => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setFormCameraView(v.id)}
+                      className={`py-1.5 px-1 rounded-xl text-[10px] font-bold transition-all border text-center ${
+                        formCameraView === v.id
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Target Angle Slider */}
               <div>
                 <div className="flex justify-between text-xs font-semibold mb-1">
@@ -1522,6 +1584,31 @@ export default function DoctorDashboard() {
                   onChange={(e) => setFormSuccessAngle(parseInt(e.target.value))}
                   className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
                 />
+              </div>
+
+              {/* Angle Tolerance Gate */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">ROM Precision Tolerance</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { val: 5, label: 'Strict (±5°)' },
+                    { val: 10, label: 'Normal (±10°)' },
+                    { val: 15, label: 'Adaptive (±15°)' }
+                  ].map(t => (
+                    <button
+                      key={t.val}
+                      type="button"
+                      onClick={() => setFormTolerance(t.val)}
+                      className={`py-1.5 px-1 rounded-xl text-[10px] font-bold transition-all border text-center ${
+                        formTolerance === t.val
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Goal Repetitions Slider */}
@@ -1558,10 +1645,39 @@ export default function DoctorDashboard() {
                 />
               </div>
 
+              {/* Compensation Rules Gates */}
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider block">Kinetic Compensation Gates</span>
+                {[
+                  { id: 'no_torso_lean', label: 'Torso Lean Limit (≤15°)' },
+                  { id: 'no_shoulder_hike', label: 'Shoulder Hike Lock (≤12°)' },
+                  { id: 'strict_lockout', label: 'Strict Joint Return Lockout' }
+                ].map(rule => {
+                  const isChecked = formCompensationRules.includes(rule.id);
+                  return (
+                    <label key={rule.id} className="flex items-center gap-2 text-[11px] font-medium text-slate-700 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormCompensationRules([...formCompensationRules, rule.id]);
+                          } else {
+                            setFormCompensationRules(formCompensationRules.filter(r => r !== rule.id));
+                          }
+                        }}
+                        className="rounded text-teal-600 focus:ring-teal-500 accent-teal-600 w-3.5 h-3.5"
+                      />
+                      <span>{rule.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
               {/* Add to routine button */}
               <button 
                 onClick={handleAddExerciseToRoutine}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2 rounded-xl text-xs transition-colors border border-slate-200 flex items-center justify-center gap-1.5"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-1.5"
               >
                 <span>➕</span>
                 <span>Add {formExercise} to Routine</span>
@@ -1571,19 +1687,25 @@ export default function DoctorDashboard() {
               {prescribedList.length > 0 && (
                 <div className="space-y-2 border-t border-slate-100 pt-4">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Assigned Exercises in Routine</span>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {prescribedList.map((ex, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-150 text-xs">
-                        <div>
-                          <span className="font-bold text-slate-900 block">{ex.exerciseName}</span>
-                          <span className="text-[10px] text-slate-400">{ex.targetReps} reps • {ex.successAngle}° • {ex.holdTime || 0}s hold</span>
+                      <div key={idx} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5">
+                        <div className="flex justify-between items-start">
+                          <span className="font-extrabold text-slate-900 block">{ex.exerciseName}</span>
+                          <button 
+                            onClick={() => handleRemoveExerciseFromRoutine(ex.exerciseName)}
+                            className="text-slate-400 hover:text-red-500 font-bold text-base leading-none px-1"
+                          >
+                            ×
+                          </button>
                         </div>
-                        <button 
-                          onClick={() => handleRemoveExerciseFromRoutine(ex.exerciseName)}
-                          className="text-slate-400 hover:text-red-500 font-bold text-sm px-1"
-                        >
-                          ×
-                        </button>
+                        <div className="flex flex-wrap gap-1">
+                          <span className="bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded text-[9px]">{ex.targetReps} reps</span>
+                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[9px]">{ex.successAngle}° (±{ex.tolerance || 10}°)</span>
+                          <span className="bg-indigo-100 text-indigo-800 font-bold px-1.5 py-0.5 rounded text-[9px]">{ex.holdTime || 0}s hold</span>
+                          <span className="bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded text-[9px] capitalize">{ex.side || 'bilateral'}</span>
+                          <span className="bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded text-[9px] capitalize">{ex.cameraView || 'front'} view</span>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -22,10 +22,11 @@ export default function Navbar() {
           </div>
 
           {/* Center Links */}
-          <div className="hidden md:flex space-x-8">
+          <div className="hidden md:flex space-x-8 items-center">
             <Link to="/" className="text-gray-600 hover:text-teal-600 font-medium">Home</Link>
             <Link to="/library" className="text-gray-600 hover:text-teal-600 font-medium">Exercise Library</Link>
             <Link to="/for-doctors" className="text-gray-600 hover:text-teal-600 font-medium">For Doctors</Link>
+            <Link to="/accuracy-bench" className="text-cyan-700 hover:text-cyan-600 font-bold bg-cyan-50 px-2.5 py-1 rounded-lg border border-cyan-200 text-xs">⚡ Accuracy Bench</Link>
           </div>
 
           

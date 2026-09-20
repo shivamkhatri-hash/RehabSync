@@ -94,7 +94,7 @@ const exerciseSchema = new mongoose.Schema({
 });
 const Exercise = mongoose.model('Exercise', exerciseSchema);
 
-// SessionLog Schema
+// SessionLog Schema with Clinical Session Metrics
 const sessionSchema = new mongoose.Schema({
   patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   exerciseName: { type: String, default: 'Bicep Curl' },
@@ -103,6 +103,16 @@ const sessionSchema = new mongoose.Schema({
   gamePlayed: { type: String, default: 'Standard Tracker' },
   hold_time_achieved: { type: Number, default: 0 },
   success_rate: { type: Number, default: 100 },
+  rom_max: { type: Number, default: 0 },
+  rom_min: { type: Number, default: 0 },
+  rom_average: { type: Number, default: 0 },
+  valid_reps: { type: Number, default: 0 },
+  invalid_reps: { type: Number, default: 0 },
+  form_violations_count: { type: Number, default: 0 },
+  form_violations: [{ type: String }],
+  consistency_score: { type: Number, default: 100 },
+  completion_percentage: { type: Number, default: 100 },
+  baseline_rom: { type: Number, default: 0 },
   date: { type: Date, default: Date.now }
 });
 const SessionLog = mongoose.model('SessionLog', sessionSchema);
@@ -705,7 +715,17 @@ app.post('/api/sessions', async (req, res) => {
       max_angle_achieved: req.body.max_angle_achieved,
       gamePlayed: req.body.gamePlayed || 'Standard Tracker',
       hold_time_achieved: req.body.hold_time_achieved || 0,
-      success_rate: req.body.success_rate || 100
+      success_rate: req.body.success_rate || 100,
+      rom_max: req.body.rom_max || req.body.max_angle_achieved || 0,
+      rom_min: req.body.rom_min || 0,
+      rom_average: req.body.rom_average || req.body.max_angle_achieved || 0,
+      valid_reps: req.body.valid_reps || req.body.reps_completed || 0,
+      invalid_reps: req.body.invalid_reps || 0,
+      form_violations_count: req.body.form_violations_count || 0,
+      form_violations: req.body.form_violations || [],
+      consistency_score: req.body.consistency_score || 100,
+      completion_percentage: req.body.completion_percentage || 100,
+      baseline_rom: req.body.baseline_rom || 0
     });
     const savedSession = await newSession.save();
     res.status(201).json(savedSession);
