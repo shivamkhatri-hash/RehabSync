@@ -15,6 +15,10 @@ import PoseQualityBanner from '../components/PoseQualityBanner';
 import PreExerciseCalibrationModal from '../components/PreExerciseCalibrationModal';
 import BaselineCalibrationFlow from '../components/BaselineCalibrationFlow';
 import PrivacyEdgeIndicator from '../components/PrivacyEdgeIndicator';
+import DailyPrescriptionCalendar from '../components/DailyPrescriptionCalendar';
+import ExerciseTutorialModal from '../components/ExerciseTutorialModal';
+import DiscomfortReportModal from '../components/DiscomfortReportModal';
+import MuscularAnatomyViewer from '../components/MuscularAnatomyViewer';
 
 const EXERCISE_REFS = {
   'Bicep Curl (Standing)': {
@@ -344,7 +348,7 @@ const fetchExerciseSpecs = async (exerciseName) => {
 const getRecommendedGameMode = (exercise) => {
   if (!exercise) return 'standard';
   const name = exercise.name.toLowerCase();
-  
+
   if (exercise.holdTime > 0 || name.includes('balance') || name.includes('bird dog') || name.includes('hold') || name.includes('stretch')) {
     return 'zen'; // Zen Garden procedural plant growing for holds
   }
@@ -356,7 +360,7 @@ const getRecommendedGameMode = (exercise) => {
 
 const getStreak = (sessionLogs) => {
   if (!sessionLogs || sessionLogs.length === 0) return 0;
-  
+
   // Extract unique dates as YYYY-MM-DD
   const dates = Array.from(new Set(sessionLogs.map(s => {
     try {
@@ -365,7 +369,7 @@ const getStreak = (sessionLogs) => {
       return null;
     }
   }))).filter(Boolean).sort().reverse(); // sort descending (latest first)
-  
+
   if (dates.length === 0) return 0;
 
   let streak = 0;
@@ -381,7 +385,7 @@ const getStreak = (sessionLogs) => {
   for (let i = 0; i < dates.length; i++) {
     const dateStr = dates[i];
     const expectedStr = expectedDate.toISOString().split('T')[0];
-    
+
     if (dateStr === expectedStr) {
       streak++;
       expectedDate.setDate(expectedDate.getDate() - 1); // step backward
@@ -399,13 +403,13 @@ export default function PatientView() {
   const [gameMode, setGameMode] = useState('standard'); // 'standard', 'zen', 'flappy', 'runner'
   const [isMuted, setIsMuted] = useState(false);
   const [selectedArm, setSelectedArm] = useState('left'); // 'left' or 'right'
-  
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const cameraCanvasRef = useRef(null);
   const { poseLandmarker, isLoaded } = usePoseLandmarker();
   const [cameraActive, setCameraActive] = useState(false);
-  
+
   const [armAngle, setArmAngle] = useState(0);
   const [prescribedExercises, setPrescribedExercises] = useState([]);
   const [currentExercise, setCurrentExercise] = useState(null);
@@ -414,7 +418,14 @@ export default function PatientView() {
   const [holdTimeLeft, setHoldTimeLeft] = useState(0);
   const [activeTab, setActiveTab] = useState('home'); // 'home', 'workout', 'stats', 'quests'
   const [sessions, setSessions] = useState([]);
-  
+
+  // Clinical Workflow & Patient-Specific Daily Allowances (3 Roles Workflow)
+  const [todayRoutine, setTodayRoutine] = useState([]);
+  const [calendarStatuses, setCalendarStatuses] = useState({});
+  const [doctorPrescriptionMeta, setDoctorPrescriptionMeta] = useState(null);
+  const [showDiscomfortModal, setShowDiscomfortModal] = useState(false);
+  const [isCompletedForToday, setIsCompletedForToday] = useState(false);
+
   // Stats & Achievements tab interactive states
   const [statsChartMode, setStatsChartMode] = useState('reps'); // 'reps', 'accuracy', 'rom'
   const [statsFilterGame, setStatsFilterGame] = useState('all');
@@ -422,7 +433,7 @@ export default function PatientView() {
   const [statsSearch, setStatsSearch] = useState('');
   const [badgeFilter, setBadgeFilter] = useState('all'); // 'all', 'unlocked', 'locked'
   const [hoveredChartPoint, setHoveredChartPoint] = useState(null);
-  
+
   const isDownRef = useRef(false);
   const repsRef = useRef(0);
   const totalFramesRef = useRef(0);
@@ -432,6 +443,7 @@ export default function PatientView() {
   const hasCountedRepRef = useRef(false);
   const lastSpokenRef = useRef(0);
   const lastPostureSpokenRef = useRef(0);
+  const isIncrementingRef = useRef(false);
 
   // Biomechanics Engine Ref & Live Diagnostics
   const biomechanicsEngineRef = useRef(new BiomechanicsEngine());
@@ -444,7 +456,88 @@ export default function PatientView() {
   const [calibrationResult, setCalibrationResult] = useState(null);
   const [personalBaselineRom, setPersonalBaselineRom] = useState(null);
   const lastCalibrationCheckRef = useRef(0);
-  
+
+  // Video Tutorial & Form Guide States (Phase 1)
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
+  const [tutorialExerciseName, setTutorialExerciseName] = useState(null);
+
+  const handleOpenTutorial = (exName) => {
+    setTutorialExerciseName(exName || currentExercise?.name || 'Bicep Curl (Standing)');
+    setShowTutorialModal(true);
+  };
+
+  // Atomic backend progress increment (survives refresh, shared across all games)
+  const handleIncrementDailyProgress = async ({ assignmentId, exerciseName, repsCount = 1, attempts = 1, maxAngle = 0, formAccuracy = 100 }) => {
+    if (!user?.id || isIncrementingRef.current) return;
+    isIncrementingRef.current = true;
+    try {
+      const res = await fetch(`${API_URL}/api/daily-progress/increment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: user.id,
+          assignmentId: assignmentId || currentExercise?.assignmentId,
+          exerciseName: exerciseName || currentExercise?.name,
+          repsCompleted: repsCount,
+          attempts: attempts,
+          maxAngle: maxAngle,
+          formAccuracy: formAccuracy,
+          gamePlayed: gameMode
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Update local routine
+        setTodayRoutine(prev => prev.map(item => {
+          if (item.assignmentId === data.progress.assignmentId || item.exerciseName === data.progress.exerciseName) {
+            return {
+              ...item,
+              completedWork: data.progress.completedWork,
+              remainingWork: data.remainingWork,
+              isCompleted: data.isCompleted
+            };
+          }
+          return item;
+        }));
+
+        if (data.isCompleted) {
+          setIsCompletedForToday(true);
+          speakText("Congratulations! Daily target completed for this exercise!");
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to persist incremental progress:", err);
+    } finally {
+      isIncrementingRef.current = false;
+    }
+  };
+
+  // Submit Discomfort & Early Stop Report
+  const handleSubmitDiscomfortReport = async (reportData) => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`${API_URL}/api/daily-progress/report-discomfort`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: user.id,
+          assignmentId: reportData.assignmentId || currentExercise?.assignmentId,
+          discomfortLevel: reportData.discomfortLevel,
+          notes: reportData.notes,
+          stoppedEarly: reportData.stoppedEarly
+        })
+      });
+      if (res.ok) {
+        alert("✅ Discomfort report logged. Your physiotherapist has been notified.");
+        if (reportData.stoppedEarly) {
+          setMode('dashboard');
+        }
+      }
+    } catch (err) {
+      alert("Failed to submit report: " + err.message);
+    }
+  };
+
   // Game state representation stored in refs to prevent React state update lag in loop
   const gameStateRef = useRef({
     bloomPercentage: 0,
@@ -468,7 +561,7 @@ export default function PatientView() {
     if (isMuted) return;
     const now = Date.now();
     if (now - lastSpokenRef.current < 2000) return;
-    
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.05;
@@ -480,7 +573,7 @@ export default function PatientView() {
     if (isMuted) return;
     const now = Date.now();
     if (now - lastPostureSpokenRef.current < 4500) return;
-    
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.0;
@@ -488,7 +581,7 @@ export default function PatientView() {
     lastPostureSpokenRef.current = now;
   };
 
-  // 1. Fetch User Profile, Doctor Prescriptions and Workout Sessions
+  // 1. Fetch User Profile, Doctor Prescriptions, Daily Progress and Workout Sessions
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('user'));
     if (!storedUser || storedUser.role !== 'patient') {
@@ -499,56 +592,166 @@ export default function PatientView() {
 
     const loadExerciseData = async () => {
       try {
-        const prescrRes = await fetch(`${API_URL}/api/prescriptions/patient/${storedUser.id}`);
+        const token = localStorage.getItem('token') || storedUser.token;
+        const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+        // 1. Fetch Daily Progress & Today's Scheduled Routine
+        const dailyRes = await fetch(`${API_URL}/api/daily-progress/patient/${storedUser.id}`, {
+          headers: authHeaders
+        });
+        let scheduledRoutine = [];
+        if (dailyRes.ok) {
+          const dailyData = await dailyRes.json();
+          scheduledRoutine = dailyData.routine || [];
+          setTodayRoutine(scheduledRoutine);
+          setCalendarStatuses(dailyData.calendarStatuses || {});
+          if (dailyData.doctorPrescription) {
+            setDoctorPrescriptionMeta(dailyData.doctorPrescription);
+          }
+        }
+
+        // 2. Fetch Doctor Prescription
+        const prescrRes = await fetch(`${API_URL}/api/prescriptions/patient/${storedUser.id}`, {
+          headers: authHeaders
+        });
         let prescribedExList = [];
         if (prescrRes.ok) {
           const prescrData = await prescrRes.json();
           if (prescrData && prescrData.exercises && prescrData.exercises.length > 0) {
             prescribedExList = prescrData.exercises;
           }
+          if (prescrData) {
+            setDoctorPrescriptionMeta({
+              diagnosis: prescrData.diagnosis,
+              pathology: prescrData.pathology,
+              restrictions: prescrData.restrictions,
+              precautions: prescrData.precautions,
+              clinicalGoals: prescrData.clinicalGoals,
+              status: prescrData.status
+            });
+          }
         }
-        
-        // Combine: prescribed exercises first, then defaults that are not prescribed
-        const combinedList = [];
-        const prescribedNames = new Set(prescribedExList.map(e => e.exerciseName.toLowerCase()));
 
-        prescribedExList.forEach(e => {
+        // 3. Merge scheduledRoutine + prescribedExList + Defaults
+        const combinedList = [];
+        const seenNames = new Set();
+
+        // Priority 1: Today's scheduled assignments from Physio plan (enriched with Doctor custom angles)
+        scheduledRoutine.forEach(r => {
+          seenNames.add(r.exerciseName.toLowerCase());
+          const docMatch = prescribedExList.find(e => e.exerciseName?.toLowerCase() === r.exerciseName?.toLowerCase());
+          const succAngle = docMatch?.successAngle !== undefined ? Number(docMatch.successAngle) : 125;
+          const failAngle = docMatch?.failureAngle !== undefined ? Number(docMatch.failureAngle) : 165;
+          const holdSec = r.type === 'hold' || r.targetType === 'hold_seconds' 
+            ? (Number(r.holdDurationSec) || Number(r.holdDuration) || Number(docMatch?.holdTime) || 0)
+            : (Number(docMatch?.holdTime) || 0);
+          const repsVal = Number(r.reps) || Number(r.repsOrHold) || Number(docMatch?.targetReps) || 15;
+
           combinedList.push({
-            ...e,
-            isPrescribed: true
+            assignmentId: r.assignmentId,
+            exerciseName: r.exerciseName,
+            successAngle: succAngle,
+            failureAngle: failAngle,
+            success_angle: succAngle,
+            failure_angle: failAngle,
+            holdTime: holdSec,
+            targetReps: repsVal,
+            targetDailyWork: r.targetDailyWork,
+            completedWork: r.completedWork || 0,
+            remainingWork: r.remainingWork,
+            isCompleted: r.isCompleted || false,
+            sets: Number(r.sets) || 2,
+            sessionsPerDay: Number(r.sessionsPerDay) || 1,
+            targetType: r.targetType || (holdSec > 0 ? 'hold' : 'reps'),
+            tolerance: docMatch?.tolerance || 10,
+            side: docMatch?.side || 'bilateral',
+            cameraView: docMatch?.cameraView || 'front',
+            compensationRules: docMatch?.compensationRules || [],
+            isPrescribed: true,
+            isScheduledToday: true
           });
         });
 
+        // Priority 2: Doctor prescribed exercises not yet in scheduled list
+        prescribedExList.forEach(e => {
+          if (!seenNames.has(e.exerciseName.toLowerCase())) {
+            seenNames.add(e.exerciseName.toLowerCase());
+            const succAngle = e.successAngle !== undefined ? Number(e.successAngle) : 125;
+            const failAngle = e.failureAngle !== undefined ? Number(e.failureAngle) : 165;
+            combinedList.push({
+              exerciseName: e.exerciseName,
+              successAngle: succAngle,
+              failureAngle: failAngle,
+              success_angle: succAngle,
+              failure_angle: failAngle,
+              holdTime: Number(e.holdTime) || 0,
+              targetReps: Number(e.targetReps) || 15,
+              sets: 2,
+              sessionsPerDay: 1,
+              targetType: e.holdTime > 0 ? 'hold' : 'reps',
+              tolerance: e.tolerance || 10,
+              side: e.side || 'bilateral',
+              cameraView: e.cameraView || 'front',
+              compensationRules: e.compensationRules || [],
+              isPrescribed: true,
+              isScheduledToday: false
+            });
+          }
+        });
+
+        // Priority 3: System defaults
         SYSTEM_DEFAULT_EXERCISES.forEach(e => {
-          if (!prescribedNames.has(e.exerciseName.toLowerCase())) {
+          if (!seenNames.has(e.exerciseName.toLowerCase())) {
             combinedList.push({
               ...e,
-              isPrescribed: false
+              successAngle: e.success_angle || 125,
+              failureAngle: e.failure_angle || 165,
+              isPrescribed: false,
+              isScheduledToday: false
             });
           }
         });
 
         const enriched = await Promise.all(combinedList.map(async (ex) => {
           const specs = await fetchExerciseSpecs(ex.exerciseName);
+          const succ = ex.successAngle !== undefined ? Number(ex.successAngle) : 125;
+          const fail = ex.failureAngle !== undefined ? Number(ex.failureAngle) : 165;
           return {
+            ...specs,
+            ...ex,
             name: ex.exerciseName,
-            success_angle: ex.successAngle,
-            failure_angle: ex.failureAngle,
-            holdTime: ex.holdTime,
-            targetReps: ex.targetReps,
+            assignmentId: ex.assignmentId,
+            success_angle: succ,
+            failure_angle: fail,
+            successAngle: succ,
+            failureAngle: fail,
+            holdTime: ex.holdTime || 0,
+            targetReps: ex.targetReps || 15,
+            targetDailyWork: ex.targetDailyWork,
+            completedWork: ex.completedWork || 0,
+            remainingWork: ex.remainingWork,
+            isCompleted: ex.isCompleted || false,
+            sets: ex.sets || 2,
+            sessionsPerDay: ex.sessionsPerDay || 1,
+            targetType: ex.targetType || (ex.holdTime > 0 ? 'hold' : 'reps'),
+            tolerance: ex.tolerance || 10,
+            side: ex.side || 'bilateral',
+            cameraView: ex.cameraView || 'front',
+            compensationRules: ex.compensationRules || [],
             isPrescribed: ex.isPrescribed,
-            ...specs
+            isScheduledToday: ex.isScheduledToday,
           };
         }));
 
         setPrescribedExercises(enriched);
         const initialEx = enriched[0];
         setCurrentExercise(initialEx);
+        setIsCompletedForToday(initialEx?.isCompleted || false);
         if (initialEx) {
           setGameMode(getRecommendedGameMode(initialEx));
         }
 
-        // Fetch session logs
+        // 4. Fetch session logs
         const sessionsRes = await fetch(`${API_URL}/api/sessions/patient/${storedUser.id}`);
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
@@ -596,7 +799,7 @@ export default function PatientView() {
     } else if (gameMode === 'beat') {
       gameStateRef.current = { ...gameStateRef.current, ...beatRehab.init() };
     }
-    
+
     biomechanicsEngineRef.current.reset();
     repsRef.current = 0;
     setReps(0);
@@ -671,21 +874,35 @@ export default function PatientView() {
 
           // Handle rep completion from temporal state machine
           if (engineRes.repCompleted) {
-            if (gameMode !== 'flappy') {
-              repsRef.current = engineRes.repCount;
-              setReps(engineRes.repCount);
-              speakText(`Rep ${engineRes.repCount} counted.`);
-            }
+            if (!isCompletedForToday) {
+              if (gameMode !== 'flappy') {
+                repsRef.current = engineRes.repCount;
+                setReps(engineRes.repCount);
+                speakText(`Rep ${engineRes.repCount} counted.`);
+              }
 
-            // Trigger visual action rewards in specific games
-            if (gameMode === 'zen') {
-              gameStateRef.current.flowers.push({
-                x: canvas.width / 2 + (Math.random() * 120 - 60),
-                y: canvas.height - gameStateRef.current.plantHeight + (Math.random() * 40 - 20),
-                color: `hsl(${Math.random() * 90 + 320}, 90%, 65%)`,
-                scale: 0.1
+              // Incremental backend progress save (preserves work across devices/interruption)
+              handleIncrementDailyProgress({
+                assignmentId: currentExercise?.assignmentId,
+                exerciseName: currentExercise?.name,
+                repsCount: 1,
+                attempts: 1,
+                maxAngle: liveAngleVal,
+                formAccuracy: engineRes.formCheck.formScore || 100
               });
-              gameStateRef.current.plantHeight += 12;
+
+              // Trigger visual action rewards in specific games
+              if (gameMode === 'zen') {
+                gameStateRef.current.flowers.push({
+                  x: canvas.width / 2 + (Math.random() * 120 - 60),
+                  y: canvas.height - gameStateRef.current.plantHeight + (Math.random() * 40 - 20),
+                  color: `hsl(${Math.random() * 90 + 320}, 90%, 65%)`,
+                  scale: 0.1
+                });
+                gameStateRef.current.plantHeight += 12;
+              }
+            } else {
+              speakText("Daily target reached for this routine.");
             }
           }
 
@@ -713,14 +930,14 @@ export default function PatientView() {
         }
 
         // --- GRAPHICS LAYER RENDERING ---
-        
+
         // 1. Draw to the Camera Form Check canvas if visible (i.e. we are in gameMode !== 'standard')
         if (gameMode !== 'standard' && cameraCanvasRef.current) {
           const camCanvas = cameraCanvasRef.current;
           const ctxCam = camCanvas.getContext('2d');
           camCanvas.width = 640;
           camCanvas.height = 480;
-          
+
           standardTracker.draw(ctxCam, camCanvas, {
             video,
             detectedLandmarks,
@@ -747,16 +964,16 @@ export default function PatientView() {
               isPostureInvalid,
               postureAlert
             });
-          } 
-          
+          }
+
           else if (gameMode === 'zen') {
             zenBloom.draw(ctxGame, gameCanvas, gameStateRef.current, {
               video: null, // Disable mini camera inside game view to prevent duplication
               isHolding,
               isPostureInvalid
             });
-          } 
-          
+          }
+
           else if (gameMode === 'flappy') {
             flappyRehab.draw(ctxGame, gameCanvas, gameStateRef.current, {
               video: null, // Disable mini camera inside game view to prevent duplication
@@ -768,7 +985,7 @@ export default function PatientView() {
               isPostureInvalid
             });
           }
-          
+
           else if (gameMode === 'mannequin') {
             mannequinTracker.draw(ctxGame, gameCanvas, gameStateRef.current, {
               detectedLandmarks,
@@ -910,7 +1127,7 @@ export default function PatientView() {
       const engine = biomechanicsEngineRef.current;
       const romMax = engine.maxAngleSeen || armAngle;
       const romMin = engine.minAngleSeen === 999 ? 0 : engine.minAngleSeen;
-      const romAvg = engine.repAngleHistory.length > 0 
+      const romAvg = engine.repAngleHistory.length > 0
         ? Math.round(engine.repAngleHistory.reduce((a, b) => a + (b.maxRom || 0), 0) / engine.repAngleHistory.length)
         : armAngle;
       const validReps = engine.repCount || reps;
@@ -957,7 +1174,7 @@ export default function PatientView() {
       });
       if (response.ok) {
         alert("✅ Session details successfully recorded for your doctor's review!");
-        
+
         // Refresh session logs to update stats instantly
         const sessionsRes = await fetch(`${API_URL}/api/sessions/patient/${user.id}`);
         if (sessionsRes.ok) {
@@ -989,7 +1206,7 @@ export default function PatientView() {
     const totalHolds = sessions.reduce((acc, curr) => acc + (curr.hold_time_achieved || 0), 0);
     const totalSessions = sessions.length;
     const totalXP = (totalReps * 10) + (totalHolds * 5) + (totalSessions * 50);
-    
+
     // Level scaling: 250 XP per level
     const currentLevel = Math.floor(totalXP / 250) + 1;
     const xpRemaining = totalXP % 250;
@@ -1103,8 +1320,8 @@ export default function PatientView() {
 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-800 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto space-y-8">
-          
+        <div className="max-w-7xl mx-auto space-y-8">
+
           {/* Patient Welcomer Header */}
           <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
@@ -1117,16 +1334,15 @@ export default function PatientView() {
               <h1 className="text-3xl font-black text-slate-900 mt-2">Welcome back, {user.name}</h1>
               <p className="text-slate-500 mt-1">Focus Area: <span className="font-semibold text-teal-600 capitalize">{user.focusArea?.replace('_', ' ')}</span></p>
             </div>
-            
+
             {/* Mute Voice Feedback buttons */}
             <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsMuted(!isMuted)} 
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 ${
-                  isMuted 
-                    ? 'bg-rose-50 text-rose-700 border-rose-200' 
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 ${isMuted
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
                     : 'bg-teal-50 text-teal-700 border-teal-200'
-                }`}
+                  }`}
               >
                 {isMuted ? '🔇 Voice Coach Off' : '🔊 Voice Coach On'}
               </button>
@@ -1135,43 +1351,39 @@ export default function PatientView() {
 
           {/* Sub Navigation Tabs */}
           <div className="flex border border-slate-200 gap-1 bg-slate-100 p-1.5 rounded-2xl">
-            <button 
+            <button
               onClick={() => setActiveTab('home')}
-              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                activeTab === 'home' 
-                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10' 
+              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${activeTab === 'home'
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10'
                   : 'text-slate-600 hover:text-slate-905 hover:bg-slate-200/60'
-              }`}
+                }`}
             >
               🏠 Overview
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('workout')}
-              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                activeTab === 'workout' 
-                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10' 
+              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${activeTab === 'workout'
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10'
                   : 'text-slate-600 hover:text-slate-905 hover:bg-slate-200/60'
-              }`}
+                }`}
             >
               🏋️‍♂️ Workout Hub
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('stats')}
-              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                activeTab === 'stats' 
-                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10' 
+              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${activeTab === 'stats'
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10'
                   : 'text-slate-600 hover:text-slate-905 hover:bg-slate-200/60'
-              }`}
+                }`}
             >
               📊 Stats & Achievements
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('quests')}
-              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                activeTab === 'quests' 
-                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10' 
+              className={`flex-1 py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${activeTab === 'quests'
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10'
                   : 'text-slate-600 hover:text-slate-905 hover:bg-slate-200/60'
-              }`}
+                }`}
             >
               🏆 Quest & Leaderboard
             </button>
@@ -1180,9 +1392,153 @@ export default function PatientView() {
           {/* TAB 0: DASHBOARD OVERVIEW */}
           {activeTab === 'home' && (
             <div className="space-y-6">
-              {/* Daily Streak & Quick Start */}
+
+              {/* Doctor's Medical Diagnosis & Precautions Banner */}
+              {doctorPrescriptionMeta && (
+                <div className="bg-gradient-to-r from-teal-900/10 via-slate-900/5 to-indigo-900/10 border border-teal-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-teal-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-sm">🩺</span>
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900">Doctor's Medical Prescription & Safety Directives</h3>
+                        <p className="text-[10px] text-slate-500">Established by attending physician • Calibrated & verified by your Physiotherapist</p>
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
+                      doctorPrescriptionMeta.status === 'Verified by Physio'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }`}>
+                      {doctorPrescriptionMeta.status === 'Verified by Physio' ? '✓ Verified by Physio' : '⏳ In Physio Calibration'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                    <div className="bg-white/90 p-3.5 rounded-2xl border border-slate-200/80">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Primary Diagnosis</span>
+                      <span className="font-extrabold text-slate-900 block text-xs">{doctorPrescriptionMeta.diagnosis || 'Post-injury rehabilitation program'}</span>
+                    </div>
+
+                    <div className="bg-white/90 p-3.5 rounded-2xl border border-slate-200/80">
+                      <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest block mb-1">Movement Restrictions</span>
+                      <span className="font-bold text-rose-700 block text-xs">{doctorPrescriptionMeta.restrictions || 'Avoid ballistic loads'}</span>
+                    </div>
+
+                    <div className="bg-white/90 p-3.5 rounded-2xl border border-slate-200/80">
+                      <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest block mb-1">Safety Precautions</span>
+                      <span className="font-bold text-amber-800 block text-xs">{doctorPrescriptionMeta.precautions || 'Stop if pain exceeds 4/10 VAS'}</span>
+                    </div>
+
+                    <div className="bg-white/90 p-3.5 rounded-2xl border border-slate-200/80">
+                      <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest block mb-1">Clinical Goals</span>
+                      <span className="font-bold text-indigo-800 block text-xs">{doctorPrescriptionMeta.clinicalGoals || 'Joint stability & full ROM recovery'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* HERO ANATOMICAL CLINICAL SHOWCASE (REFERENCE 2 STYLE) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                {/* Muscular Human Figure with Kinetic Joint Rings (Reference 2 Left) */}
+                <div className="lg:col-span-5 flex flex-col">
+                  <MuscularAnatomyViewer 
+                    activeJoint={currentExercise?.name?.toLowerCase().includes('shoulder') ? 'shoulder' : currentExercise?.name?.toLowerCase().includes('bicep') ? 'elbow' : 'knee'}
+                    exerciseName={currentExercise?.name || 'Mini Squat'}
+                    alertCount={doctorPrescriptionMeta ? 2 : 0}
+                  />
+                </div>
+
+                {/* Patient Details & Progress Summary (Reference 2 Right) */}
+                <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
+                  {/* Top Details & Clinical Summary Box */}
+                  <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-5">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-400 to-indigo-600 flex items-center justify-center text-2xl font-black text-white shadow-md">
+                          {user?.name?.charAt(0) || 'P'}
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Patient Telemetry Record</span>
+                          <h3 className="text-xl font-black text-slate-900 leading-tight">{user?.name || 'Patient'}</h3>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5 capitalize">
+                            Diagnosis: <span className="font-bold text-slate-800">{doctorPrescriptionMeta?.diagnosis || 'Musculoskeletal Rehabilitation Protocol'}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setActiveTab('workout')}
+                        className="bg-teal-600 hover:bg-teal-700 text-white font-extrabold px-5 py-2.5 rounded-2xl text-xs shadow-md shadow-teal-600/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                      >
+                        <span>🏋️‍♂️</span>
+                        <span>Start Session</span>
+                      </button>
+                    </div>
+
+                    {/* Summary Highlights */}
+                    <div>
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2.5">Clinical Recovery Metrics</h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150">
+                          <span className="text-slate-400 block text-[9px] font-bold uppercase tracking-wider mb-0.5">Mobility Index</span>
+                          <span className="text-sm font-black text-emerald-600">+20%</span>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150">
+                          <span className="text-slate-400 block text-[9px] font-bold uppercase tracking-wider mb-0.5">Form Compliance</span>
+                          <span className="text-sm font-black text-indigo-600 font-mono">{totalSessions > 0 ? `${avgSuccessRate}%` : '92%'}</span>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150">
+                          <span className="text-slate-400 block text-[9px] font-bold uppercase tracking-wider mb-0.5">Active Routine</span>
+                          <span className="text-sm font-black text-slate-800 capitalize truncate block">{currentExercise?.name || 'Mini Squat'}</span>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-150">
+                          <span className="text-slate-400 block text-[9px] font-bold uppercase tracking-wider mb-0.5">Target Daily</span>
+                          <span className="text-sm font-black text-teal-600 font-mono">{currentExercise?.targetReps || 15} Reps</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress Wave Area Chart (Reference 2 Progress Wave) */}
+                  <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-3 flex-1 flex flex-col justify-between">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-black text-slate-900 tracking-tight">Kinematic ROM Progression</h4>
+                      <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
+                        Monthly Trend
+                      </span>
+                    </div>
+
+                    <div className="w-full relative h-36">
+                      <svg viewBox="0 0 500 140" className="w-full h-full overflow-visible select-none">
+                        <defs>
+                          <linearGradient id="patientWaveGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#0284c7" stopOpacity="0.35" />
+                            <stop offset="100%" stopColor="#0284c7" stopOpacity="0.00" />
+                          </linearGradient>
+                        </defs>
+                        <path 
+                          d="M 20 110 C 80 110, 110 95, 160 85 C 210 75, 250 85, 300 65 C 360 45, 410 25, 480 20 L 480 125 L 20 125 Z" 
+                          fill="url(#patientWaveGrad)" 
+                        />
+                        <path 
+                          d="M 20 110 C 80 110, 110 95, 160 85 C 210 75, 250 85, 300 65 C 360 45, 410 25, 480 20" 
+                          fill="none" 
+                          stroke="#0284c7" 
+                          strokeWidth="3" 
+                          strokeLinecap="round" 
+                        />
+                        {['Jan', 'Mar', 'May', 'Jul', 'Sep', 'Nov'].map((m, idx) => (
+                          <text key={m} x={30 + idx * 85} y="138" fill="#94a3b8" fontSize="9" fontWeight="bold" textAnchor="middle">{m}</text>
+                        ))}
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Daily Streak & Form Accuracy Stats Row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                
+
                 {/* Streak Card */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-2xl">🔥</div>
@@ -1191,7 +1547,7 @@ export default function PatientView() {
                     <span className="text-xl font-black text-slate-800">{currentStreak} {currentStreak === 1 ? 'Day' : 'Days'} Active</span>
                   </div>
                 </div>
-                
+
                 {/* Active Level Card */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-2xl">⚡</div>
@@ -1211,101 +1567,217 @@ export default function PatientView() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Left Side: Prescription Status Card */}
-                <div className="md:col-span-1 space-y-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3">Active Prescription</h3>
-                  
-                  {doctorPrescribed.length > 0 ? (
+              {/* 3-Column Side-by-Side Dashboard Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* Left Side (Col 4): Today's Prescribed Exercises */}
+                <div className="lg:col-span-4 space-y-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Today's Exercises</h3>
+                      <p className="text-[10px] text-slate-400">Physiotherapist weekly allowance</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                      {todayRoutine.length > 0 ? `${todayRoutine.filter(r => r.isCompleted).length}/${todayRoutine.length} Done` : 'Active'}
+                    </span>
+                  </div>
+
+                  {(todayRoutine.length > 0 ? todayRoutine : doctorPrescribed).length > 0 ? (
                     <div className="space-y-4">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Prescribed Stretch</span>
-                        <span className="font-extrabold text-slate-800 text-base">{doctorPrescribed[0].name}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <span className="text-slate-400 block font-bold text-[9px] uppercase">Goal Target</span>
-                          <span className="font-extrabold text-slate-800">{doctorPrescribed[0].targetReps} Reps</span>
-                        </div>
-                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <span className="text-slate-400 block font-bold text-[9px] uppercase">Hold Time</span>
-                          <span className="font-extrabold text-slate-800">{doctorPrescribed[0].holdTime || 0}s</span>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          setCurrentExercise(doctorPrescribed[0]);
-                          setReps(0);
-                          repsRef.current = 0;
-                          setGameMode(getRecommendedGameMode(doctorPrescribed[0]));
-                          setActiveTab('workout');
-                        }}
-                        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-1 shadow-md shadow-teal-600/10"
-                      >
-                        🏋️‍♂️ Start Workout Now
-                      </button>
+                      {(todayRoutine.length > 0 ? todayRoutine : doctorPrescribed).map((item, pIdx) => {
+                        const exName = item.exerciseName || item.name;
+                        const targetWork = item.targetDailyWork || item.targetReps || 15;
+                        const completedWork = item.completedWork || 0;
+                        const isDone = item.isCompleted || (completedWork >= targetWork);
+                        const pct = Math.min(100, Math.round((completedWork / targetWork) * 100));
+
+                        return (
+                          <div 
+                            key={item.assignmentId || pIdx} 
+                            className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                              isDone 
+                                ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400/30' 
+                                : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`w-2 h-2 rounded-full ${isDone ? 'bg-emerald-500' : 'bg-teal-500'}`}></span>
+                                  <span className="font-black text-slate-900 text-sm block">{exName}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
+                                  {item.sets ? `${item.sets} sets × ${item.repsOrHold || 15} ${item.targetType === 'hold_seconds' ? 's hold' : 'reps'} × ${item.sessionsPerDay || 1}/day` : `Target: ${targetWork} reps`}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenTutorial(exName)}
+                                className="px-2 py-1 rounded-lg bg-white hover:bg-teal-50 text-teal-700 font-bold text-[10px] border border-slate-200 hover:border-teal-300 flex items-center gap-1 transition-all shadow-2xs"
+                                title="Watch Clinical Tutorial"
+                              >
+                                🎬 Tutorial
+                              </button>
+                            </div>
+
+                            {/* Allowance Progress Bar */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[10px] font-bold">
+                                <span className={isDone ? 'text-emerald-700' : 'text-slate-500'}>
+                                  {isDone ? '✓ Daily Target Fulfilled' : 'Daily Progress'}
+                                </span>
+                                <span className="font-mono text-slate-700">
+                                  {completedWork} / {targetWork} {item.targetType === 'hold_seconds' ? 'sec' : 'reps'} ({pct}%)
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 ${isDone ? 'bg-emerald-500' : 'bg-teal-500'}`} 
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Start / Resume / Completed Action */}
+                            {isDone ? (
+                              <div className="w-full py-2 bg-emerald-100/70 border border-emerald-300 text-emerald-800 font-black rounded-xl text-xs text-center flex items-center justify-center gap-1.5 shadow-2xs">
+                                <span>✓</span>
+                                <span>Completed for today</span>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  const matchingEx = prescribedExercises.find(e => e.name?.toLowerCase() === exName?.toLowerCase()) || {
+                                    name: exName,
+                                    assignmentId: item.assignmentId,
+                                    targetReps: item.reps || item.repsOrHold || 15,
+                                    holdTime: item.targetType === 'hold_seconds' || item.type === 'hold' ? (item.holdDurationSec || item.holdDuration || 0) : 0,
+                                    success_angle: item.successAngle || item.success_angle || 125,
+                                    failure_angle: item.failureAngle || item.failure_angle || 165,
+                                    successAngle: item.successAngle || item.success_angle || 125,
+                                    failureAngle: item.failureAngle || item.failure_angle || 165
+                                  };
+                                  setCurrentExercise(matchingEx);
+                                  setIsCompletedForToday(false);
+                                  setReps(completedWork);
+                                  repsRef.current = completedWork;
+                                  setGameMode(getRecommendedGameMode(matchingEx));
+                                  setActiveTab('workout');
+                                }}
+                                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-teal-600/10 cursor-pointer"
+                              >
+                                <span>{completedWork > 0 ? '▶️ Resume Routine' : '🏋️‍♂️ Start Workout'}</span>
+                                {completedWork > 0 && <span className="text-[10px] opacity-80">({targetWork - completedWork} remaining)</span>}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
-                    <div className="bg-slate-50 border border-slate-150 p-6 rounded-2xl text-center space-y-3">
+                    <div className="bg-slate-50 border border-slate-150 p-5 rounded-2xl text-center space-y-2.5">
                       <span className="text-2xl block">📋</span>
-                      <h4 className="font-bold text-slate-700 text-xs">No Active Prescription</h4>
-                      <p className="text-[10px] text-slate-450 leading-relaxed">Your therapist has not assigned any active workout routines yet. You can still practice any exercise in the Workout Hub!</p>
+                      <h4 className="font-bold text-slate-700 text-xs">No Active Weekly Plan</h4>
+                      <p className="text-[10px] text-slate-450 leading-relaxed">Your physiotherapist has not assigned exercises for today yet. You can still practice any routine in the Workout Hub!</p>
+                      <button
+                        onClick={() => setActiveTab('workout')}
+                        className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 rounded-xl text-[11px] transition-colors"
+                      >
+                        Explore Workout Hub
+                      </button>
                     </div>
                   )}
                 </div>
 
-                {/* Right Side: Weekly Activity Chart */}
-                <div className="md:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 mb-4">Weekly Repetitions Trend</h3>
-                    {sessions.length > 0 ? (
-                      <div className="relative h-44 w-full flex items-end justify-between px-2 pt-4">
-                        {/* Grid lines */}
-                        <div className="absolute inset-x-0 top-0 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">15 Reps</div>
-                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">8 Reps</div>
-                        <div className="absolute inset-x-0 bottom-0 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">0 Reps</div>
-                        
-                        {/* Sparkline representation */}
-                        {sessions.slice(-7).reverse().map((session, i) => {
-                          const repsVal = session.reps_completed || 0;
-                          const heightPct = Math.min(100, (repsVal / 15) * 100);
-                          return (
-                            <div key={i} className="flex-1 flex flex-col items-center gap-2 group z-10">
-                              <div className="relative w-8 bg-gradient-to-t from-teal-500 to-indigo-500 rounded-lg shadow-sm transition-all duration-500 hover:scale-105" style={{ height: `${Math.max(10, heightPct)}%` }}>
-                                <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-mono text-[9px] font-bold px-1.5 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{repsVal} reps</span>
+                {/* Center Column (Col 5): Daily Prescription Calendar & Weekly Trend */}
+                <div className="lg:col-span-5 space-y-6">
+                  {/* Daily Prescription Task Calendar */}
+                  <DailyPrescriptionCalendar
+                    sessions={sessions}
+                    prescriptions={doctorPrescribed}
+                    todayRoutine={todayRoutine}
+                    calendarStatuses={calendarStatuses}
+                    onStartWorkout={() => {
+                      if (todayRoutine.length > 0) {
+                        const target = todayRoutine[0];
+                        const matchingEx = prescribedExercises.find(e => e.name === (target.exerciseName || target.name));
+                        if (matchingEx) {
+                          setCurrentExercise(matchingEx);
+                          setGameMode(getRecommendedGameMode(matchingEx));
+                        }
+                      }
+                      setActiveTab('workout');
+                    }}
+                  />
+
+                  {/* Weekly Repetitions Trend */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 mb-4">Weekly Repetitions Trend</h3>
+                      {sessions.length > 0 ? (
+                        <div className="relative h-40 w-full flex items-end justify-between px-2 pt-4">
+                          {/* Grid lines */}
+                          <div className="absolute inset-x-0 top-0 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">15 Reps</div>
+                          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">8 Reps</div>
+                          <div className="absolute inset-x-0 bottom-0 border-t border-slate-100 text-[8px] text-slate-350 pt-1 font-bold font-mono">0 Reps</div>
+
+                          {/* Sparkline representation */}
+                          {sessions.slice(-7).reverse().map((session, i) => {
+                            const repsVal = session.reps_completed || 0;
+                            const heightPct = Math.min(100, (repsVal / 15) * 100);
+                            return (
+                              <div key={i} className="flex-1 flex flex-col items-center gap-2 group z-10">
+                                <div className="relative w-8 bg-gradient-to-t from-teal-500 to-indigo-500 rounded-lg shadow-sm transition-all duration-500 hover:scale-105" style={{ height: `${Math.max(10, heightPct)}%` }}>
+                                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-mono text-[9px] font-bold px-1.5 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{repsVal} reps</span>
+                                </div>
+                                <span className="text-[8px] text-slate-400 font-bold font-mono uppercase tracking-wider">{new Date(session.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
                               </div>
-                              <span className="text-[8px] text-slate-400 font-bold font-mono uppercase tracking-wider">{new Date(session.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="h-44 flex items-center justify-center text-slate-400 text-xs">
-                        Complete workouts to display your weekly repetition progress!
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="h-40 flex items-center justify-center text-slate-400 text-xs">
+                          Complete workouts to display your weekly repetition progress!
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Quest Checklist Preview */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Active Quests</h3>
-                  <button onClick={() => setActiveTab('quests')} className="text-xs text-teal-600 hover:text-teal-700 font-bold">View Leaderboard &rarr;</button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {quests.slice(0, 2).map((quest, idx) => (
-                    <div key={idx} className={`p-4 rounded-2xl border flex justify-between items-center ${quest.done ? 'bg-teal-50/20 border-teal-100' : 'bg-slate-50/30 border-slate-150'}`}>
-                      <div className="space-y-1">
-                        <span className="text-xs font-bold text-slate-800 block">{quest.name} <span className="text-[9px] font-black text-amber-600 ml-1">+{quest.reward}</span></span>
-                        <p className="text-[10px] text-slate-400 leading-tight">{quest.desc}</p>
+                {/* Right Side (Col 3): Active Quests & Challenges */}
+                <div className="lg:col-span-3 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Active Quests</h3>
+                    <button onClick={() => setActiveTab('quests')} className="text-[11px] text-teal-600 hover:text-teal-700 font-extrabold">All Quests &rarr;</button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {quests.map((quest, idx) => (
+                      <div key={idx} className={`p-3.5 rounded-2xl border flex flex-col gap-1.5 transition-all ${quest.done ? 'bg-teal-50/30 border-teal-200' : 'bg-slate-50/50 border-slate-200/80 hover:border-slate-300'}`}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-black text-slate-800">{quest.name}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${quest.done ? 'bg-teal-100 text-teal-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>{quest.reward}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight">{quest.desc}</p>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-100/80">
+                          <span className={`text-[9px] font-bold ${quest.done ? 'text-teal-600 font-extrabold' : 'text-slate-400'}`}>
+                            {quest.done ? '✓ Completed' : 'In Progress'}
+                          </span>
+                          {!quest.done && (
+                            <button
+                              onClick={() => setActiveTab('workout')}
+                              className="text-[9px] font-extrabold text-teal-600 hover:underline"
+                            >
+                              Play Now
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${quest.done ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-450'}`}>{quest.done ? '✓ Done' : 'Pending'}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
+
               </div>
             </div>
           )}
@@ -1317,27 +1789,39 @@ export default function PatientView() {
               <div className="md:col-span-1 space-y-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-fit">
                 <h2 className="text-base font-extrabold text-slate-900 border-b border-slate-100 pb-3">Exercise Roster</h2>
                 <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
-                  
+
                   {/* Doctor Prescribed Section */}
                   {doctorPrescribed.length > 0 && (
                     <div className="space-y-2">
                       <span className="block text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1.5">⭐ Doctor Prescribed</span>
                       {doctorPrescribed.map((ex, idx) => (
-                        <div 
-                          key={ex.name} 
+                        <div
+                          key={ex.name}
                           onClick={() => {
                             setCurrentExercise(ex);
                             setReps(0);
                             repsRef.current = 0;
                             setGameMode(getRecommendedGameMode(ex));
                           }}
-                          className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                            currentExercise?.name === ex.name 
-                              ? 'border-teal-500 bg-teal-50/50 shadow-sm' 
+                          className={`p-4 rounded-2xl border cursor-pointer transition-all ${currentExercise?.name === ex.name
+                              ? 'border-teal-500 bg-teal-50/50 shadow-sm'
                               : 'border-slate-100 bg-slate-50/20 hover:bg-slate-50 hover:border-slate-200'
-                          }`}
+                            }`}
                         >
-                          <h3 className="font-bold text-slate-800 text-sm">{ex.name}</h3>
+                          <div className="flex items-start justify-between">
+                            <h3 className="font-bold text-slate-800 text-sm">{ex.name}</h3>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenTutorial(ex.name);
+                              }}
+                              className="px-2 py-0.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-[10px] border border-teal-200 flex items-center gap-1 transition-all"
+                              title="Watch Video Tutorial"
+                            >
+                              🎬 Tutorial
+                            </button>
+                          </div>
                           <p className="text-[11px] text-slate-500 mt-1">Target: {ex.targetReps} reps</p>
                           {ex.holdTime > 0 && <p className="text-[11px] text-indigo-600 font-bold mt-0.5">⏱ Hold: {ex.holdTime}s</p>}
                         </div>
@@ -1349,21 +1833,33 @@ export default function PatientView() {
                   <div className="space-y-2">
                     <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">📋 General Practice</span>
                     {generalPractice.map((ex, idx) => (
-                      <div 
-                        key={ex.name} 
+                      <div
+                        key={ex.name}
                         onClick={() => {
                           setCurrentExercise(ex);
                           setReps(0);
                           repsRef.current = 0;
                           setGameMode(getRecommendedGameMode(ex));
                         }}
-                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                          currentExercise?.name === ex.name 
-                            ? 'border-teal-500 bg-teal-50/50 shadow-sm' 
+                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${currentExercise?.name === ex.name
+                            ? 'border-teal-500 bg-teal-50/50 shadow-sm'
                             : 'border-slate-100 bg-slate-50/20 hover:bg-slate-50 hover:border-slate-200'
-                        }`}
+                          }`}
                       >
-                        <h3 className="font-bold text-slate-800 text-sm">{ex.name}</h3>
+                        <div className="flex items-start justify-between">
+                          <h3 className="font-bold text-slate-800 text-sm">{ex.name}</h3>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenTutorial(ex.name);
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-[10px] border border-teal-200 flex items-center gap-1 transition-all"
+                            title="Watch Video Tutorial"
+                          >
+                            🎬 Tutorial
+                          </button>
+                        </div>
                         <p className="text-[11px] text-slate-500 mt-1">Target: {ex.targetReps} reps</p>
                         {ex.holdTime > 0 && <p className="text-[11px] text-indigo-600 font-bold mt-0.5">⏱ Hold: {ex.holdTime}s</p>}
                       </div>
@@ -1379,23 +1875,21 @@ export default function PatientView() {
                 <div className="border-t border-slate-100 pt-4 mt-4">
                   <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Target Side</label>
                   <div className="flex gap-2">
-                    <button 
+                    <button
                       onClick={() => setSelectedArm('left')}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
-                        selectedArm === 'left' 
-                          ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-900/10' 
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${selectedArm === 'left'
+                          ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-900/10'
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       👈 Left Side
                     </button>
-                    <button 
+                    <button
                       onClick={() => setSelectedArm('right')}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
-                        selectedArm === 'right' 
-                          ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-900/10' 
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${selectedArm === 'right'
+                          ? 'bg-teal-600 border-teal-600 text-white shadow-sm shadow-teal-900/10'
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       Right Side 👉
                     </button>
@@ -1405,7 +1899,15 @@ export default function PatientView() {
                 {/* Exercise Reference Card in Workout tab */}
                 {currentExercise && (
                   <div className="border-t border-slate-100 pt-4 mt-4 text-[11px] space-y-2 text-slate-600">
-                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Exercise Reference</span>
+                    <div className="flex items-center justify-between">
+                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Exercise Reference</span>
+                      <button
+                        onClick={() => handleOpenTutorial(currentExercise.name)}
+                        className="text-[10px] text-teal-600 hover:text-teal-700 font-bold flex items-center gap-1"
+                      >
+                        🎬 Open Form Tutorial &rarr;
+                      </button>
+                    </div>
                     {(() => {
                       const ref = EXERCISE_REFS[currentExercise.name] || {
                         joints: 'General Body',
@@ -1427,6 +1929,12 @@ export default function PatientView() {
                             <span className="font-extrabold text-slate-900 block text-[8px] uppercase tracking-wider">Coach Pro-Tip</span>
                             <span className="text-[9px] text-teal-700 italic">{ref.tip}</span>
                           </div>
+                          <button
+                            onClick={() => handleOpenTutorial(currentExercise.name)}
+                            className="w-full mt-2 py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                          >
+                            <span>🎬 Watch Video Tutorial & Form Guide</span>
+                          </button>
                         </div>
                       );
                     })()}
@@ -1438,95 +1946,89 @@ export default function PatientView() {
               <div className="md:col-span-2 space-y-6">
                 <h2 className="text-base font-extrabold text-slate-900">Select Game Interface</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  
-                   {/* Mode Option 1: Zen Bloom */}
-                   <div 
-                     onClick={() => setGameMode('zen')}
-                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
-                       gameMode === 'zen' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
-                     }`}
-                   >
-                     {currentExercise && getRecommendedGameMode(currentExercise) === 'zen' && (
-                       <span className="absolute top-4 right-4 bg-teal-50 text-teal-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-teal-200 shadow-sm animate-pulse">Recommended</span>
-                     )}
-                     <span className="text-3xl">🌸</span>
-                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Zen Bloom Garden</h3>
-                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Relaxing procedural plant grower. Focuses on patient hold timing and posture control.</p>
-                   </div>
-   
-                   {/* Mode Option 2: Flappy Flight */}
-                   <div 
-                     onClick={() => setGameMode('flappy')}
-                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
-                       gameMode === 'flappy' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
-                     }`}
-                   >
-                     {currentExercise && getRecommendedGameMode(currentExercise) === 'flappy' && (
-                       <span className="absolute top-4 right-4 bg-teal-50 text-teal-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-teal-200 shadow-sm animate-pulse">Recommended</span>
-                     )}
-                     <span className="text-3xl">🚀</span>
-                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Flappy Flight</h3>
-                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Classic gates flyer. Altitude maps directly to joint angle, encouraging range extensions.</p>
-                   </div>
 
-                   {/* Mode Option 3: BeatRehab (Rhythm Slicer) */}
-                   <div 
-                     onClick={() => setGameMode('beat')}
-                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
-                       gameMode === 'beat' ? 'border-purple-500 bg-white ring-2 ring-purple-500/20 shadow-md' : 'border-slate-200 bg-white hover:border-purple-300 shadow-sm'
-                     }`}
-                   >
-                     <span className="absolute top-4 right-4 bg-purple-50 text-purple-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-purple-200 shadow-sm">
-                       NEW
-                     </span>
-                     <span className="text-3xl">🎵</span>
-                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">BeatRehab Slicer</h3>
-                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Synthwave rhythm arcade. Elevate neon saber with joint movement to slice rhythm notes with cadence control.</p>
-                   </div>
-   
-                   {/* Mode Option 4: Standard Tracker */}
-                   <div 
-                     onClick={() => setGameMode('standard')}
-                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
-                       gameMode === 'standard' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
-                     }`}
-                   >
-                     {currentExercise && getRecommendedGameMode(currentExercise) === 'standard' && (
-                       <span className="absolute top-4 right-4 bg-teal-50 text-teal-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-teal-200 shadow-sm animate-pulse">Recommended</span>
-                     )}
-                     <span className="text-3xl">🩻</span>
-                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Standard AI Skeleton</h3>
-                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Mirror webcam feed overlaid with digital joints. Clinical precision analysis mode.</p>
-                   </div>
+                  {/* Mode Option 1: Zen Bloom */}
+                  <div
+                    onClick={() => setGameMode('zen')}
+                    className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${gameMode === 'zen' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
+                      }`}
+                  >
+                    {currentExercise && getRecommendedGameMode(currentExercise) === 'zen' && (
+                      <span className="absolute top-4 right-4 bg-teal-50 text-teal-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-teal-200 shadow-sm animate-pulse">Recommended</span>
+                    )}
+                    <span className="text-3xl">🌸</span>
+                    <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Zen Bloom Garden</h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Relaxing procedural plant grower. Focuses on patient hold timing and posture control.</p>
+                  </div>
 
-                   {/* Mode Option 5: 3D Hologram Mannequin */}
-                   <div 
-                     onClick={() => setGameMode('mannequin')}
-                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
-                       gameMode === 'mannequin' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
-                     }`}
-                   >
-                     <span className="text-3xl">🧊</span>
-                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">3D Hologram Mannequin</h3>
-                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Rotatable holographic 3D avatar. Drag with mouse to inspect posture alignment from any angle.</p>
-                   </div>
+                  {/* Mode Option 2: Flappy Flight */}
+                  <div
+                    onClick={() => setGameMode('flappy')}
+                    className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${gameMode === 'flappy' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
+                      }`}
+                  >
+                    {currentExercise && getRecommendedGameMode(currentExercise) === 'flappy' && (
+                      <span className="absolute top-4 right-4 bg-teal-50 text-teal-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-teal-200 shadow-sm animate-pulse">Recommended</span>
+                    )}
+                    <span className="text-3xl">🚀</span>
+                    <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Flappy Flight</h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Classic gates flyer. Altitude maps directly to joint angle, encouraging range extensions.</p>
+                  </div>
 
-                   {/* Mode Option 6: Posture Keyhole Match */}
-                   <div 
-                     onClick={() => setGameMode('shadow')}
-                     className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${
-                       gameMode === 'shadow' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
-                     }`}
-                   >
-                     <span className="text-3xl">👤</span>
-                     <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Posture Shadow Match</h3>
-                     <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Match body coordinates to a target silhouette. Hold matching posture to pop keyholes and log reps.</p>
-                   </div>
+                  {/* Mode Option 3: BeatRehab (Rhythm Slicer) */}
+                  <div
+                    onClick={() => setGameMode('beat')}
+                    className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${gameMode === 'beat' ? 'border-purple-500 bg-white ring-2 ring-purple-500/20 shadow-md' : 'border-slate-200 bg-white hover:border-purple-300 shadow-sm'
+                      }`}
+                  >
+                    <span className="absolute top-4 right-4 bg-purple-50 text-purple-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-purple-200 shadow-sm">
+                      NEW
+                    </span>
+                    <span className="text-3xl">🎵</span>
+                    <h3 className="font-extrabold text-slate-800 mt-3 text-sm">BeatRehab Slicer</h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Synthwave rhythm arcade. Elevate neon saber with joint movement to slice rhythm notes with cadence control.</p>
+                  </div>
+
+                  {/* Mode Option 4: Standard Tracker */}
+                  <div
+                    onClick={() => setGameMode('standard')}
+                    className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${gameMode === 'standard' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
+                      }`}
+                  >
+                    {currentExercise && getRecommendedGameMode(currentExercise) === 'standard' && (
+                      <span className="absolute top-4 right-4 bg-teal-50 text-teal-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-teal-200 shadow-sm animate-pulse">Recommended</span>
+                    )}
+                    <span className="text-3xl">🩻</span>
+                    <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Standard AI Skeleton</h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Mirror webcam feed overlaid with digital joints. Clinical precision analysis mode.</p>
+                  </div>
+
+                  {/* Mode Option 5: 3D Hologram Mannequin */}
+                  <div
+                    onClick={() => setGameMode('mannequin')}
+                    className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${gameMode === 'mannequin' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
+                      }`}
+                  >
+                    <span className="text-3xl">🧊</span>
+                    <h3 className="font-extrabold text-slate-800 mt-3 text-sm">3D Hologram Mannequin</h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Rotatable holographic 3D avatar. Drag with mouse to inspect posture alignment from any angle.</p>
+                  </div>
+
+                  {/* Mode Option 6: Posture Keyhole Match */}
+                  <div
+                    onClick={() => setGameMode('shadow')}
+                    className={`p-6 rounded-3xl border cursor-pointer transition-all relative ${gameMode === 'shadow' ? 'border-teal-500 bg-white ring-2 ring-teal-500/20' : 'border-slate-200 bg-white hover:border-teal-300 shadow-sm'
+                      }`}
+                  >
+                    <span className="text-3xl">👤</span>
+                    <h3 className="font-extrabold text-slate-800 mt-3 text-sm">Posture Shadow Match</h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Match body coordinates to a target silhouette. Hold matching posture to pop keyholes and log reps.</p>
+                  </div>
                 </div>
 
                 {/* Start Training Button with Calibration Modal Trigger */}
                 {currentExercise && (
-                  <button 
+                  <button
                     onClick={() => {
                       setMode('scanner');
                       setShowCalibrationModal(true);
@@ -1543,7 +2045,7 @@ export default function PatientView() {
           {/* TAB 2: STATS & ACHIEVEMENTS */}
           {activeTab === 'stats' && (
             <div className="space-y-8">
-              
+
               {/* 1. Rehab Progress, Level & Tier Roadmap Card */}
               <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1569,7 +2071,7 @@ export default function PatientView() {
 
                 {/* Progress Bar */}
                 <div className="bg-slate-100 rounded-full h-3.5 overflow-hidden shadow-inner relative border border-slate-200/80">
-                  <div 
+                  <div
                     className={`bg-gradient-to-r ${currentTier.color} h-full rounded-full transition-all duration-700 shadow-sm`}
                     style={{ width: `${Math.max(5, xpProgress)}%` }}
                   ></div>
@@ -1589,15 +2091,14 @@ export default function PatientView() {
                       const isReached = currentLevel >= tier.lvl;
                       const isCurrent = currentLevel >= tier.lvl && (idx === 4 || currentLevel < [5, 10, 15, 20][idx]);
                       return (
-                        <div 
-                          key={idx} 
-                          className={`p-3 rounded-2xl border transition-all ${
-                            isCurrent 
-                              ? 'bg-teal-50/70 border-teal-300 ring-2 ring-teal-500/10 shadow-sm' 
-                              : isReached 
-                                ? 'bg-slate-50/80 border-slate-200 text-slate-700' 
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-2xl border transition-all ${isCurrent
+                              ? 'bg-teal-50/70 border-teal-300 ring-2 ring-teal-500/10 shadow-sm'
+                              : isReached
+                                ? 'bg-slate-50/80 border-slate-200 text-slate-700'
                                 : 'bg-slate-50/30 border-slate-150 opacity-50'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-base">{tier.icon}</span>
@@ -1616,7 +2117,7 @@ export default function PatientView() {
 
               {/* 2. Six High-Impact KPI Performance Metric Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                
+
                 {/* Metric 1: Total Reps */}
                 <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-teal-200 transition-all flex flex-col justify-between">
                   <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-xl mb-3">
@@ -1700,36 +2201,33 @@ export default function PatientView() {
                     <span className="text-[10px] font-black text-teal-600 uppercase tracking-widest block">Biomechanical Analytics</span>
                     <h3 className="text-base font-extrabold text-slate-900">Recovery & Performance Trajectory</h3>
                   </div>
-                  
+
                   {/* Chart Mode Switcher */}
                   <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                    <button 
+                    <button
                       onClick={() => setStatsChartMode('reps')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        statsChartMode === 'reps' 
-                          ? 'bg-white text-teal-700 shadow-sm font-black' 
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statsChartMode === 'reps'
+                          ? 'bg-white text-teal-700 shadow-sm font-black'
                           : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                        }`}
                     >
                       📊 Reps Volume
                     </button>
-                    <button 
+                    <button
                       onClick={() => setStatsChartMode('accuracy')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        statsChartMode === 'accuracy' 
-                          ? 'bg-white text-indigo-700 shadow-sm font-black' 
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statsChartMode === 'accuracy'
+                          ? 'bg-white text-indigo-700 shadow-sm font-black'
                           : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                        }`}
                     >
                       🎯 Form Accuracy
                     </button>
-                    <button 
+                    <button
                       onClick={() => setStatsChartMode('rom')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        statsChartMode === 'rom' 
-                          ? 'bg-white text-purple-700 shadow-sm font-black' 
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statsChartMode === 'rom'
+                          ? 'bg-white text-purple-700 shadow-sm font-black'
                           : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                        }`}
                     >
                       📐 Max ROM (°)
                     </button>
@@ -1802,7 +2300,7 @@ export default function PatientView() {
                           const dateLabel = new Date(s.date).toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
 
                           return (
-                            <div 
+                            <div
                               key={idx}
                               className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
                               onMouseEnter={() => setHoveredChartPoint({ ...s, value, unit, dateLabel })}
@@ -1814,7 +2312,7 @@ export default function PatientView() {
                               </div>
 
                               {/* Bar */}
-                              <div 
+                              <div
                                 className={`w-full max-w-[36px] bg-gradient-to-t ${barColor} rounded-xl shadow-sm transition-all duration-500 group-hover:scale-105 group-hover:brightness-110`}
                                 style={{ height: `${heightPercent}%` }}
                               ></div>
@@ -1872,25 +2370,22 @@ export default function PatientView() {
                   <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
                     <button
                       onClick={() => setBadgeFilter('all')}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                        badgeFilter === 'all' ? 'bg-white text-slate-900 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${badgeFilter === 'all' ? 'bg-white text-slate-900 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       All ({achievements.length})
                     </button>
                     <button
                       onClick={() => setBadgeFilter('unlocked')}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                        badgeFilter === 'unlocked' ? 'bg-white text-teal-700 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${badgeFilter === 'unlocked' ? 'bg-white text-teal-700 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       Unlocked ({achievements.filter(a => a.unlocked).length})
                     </button>
                     <button
                       onClick={() => setBadgeFilter('locked')}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                        badgeFilter === 'locked' ? 'bg-white text-slate-700 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${badgeFilter === 'locked' ? 'bg-white text-slate-700 shadow-sm font-black' : 'text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       Locked ({achievements.filter(a => !a.unlocked).length})
                     </button>
@@ -1900,13 +2395,12 @@ export default function PatientView() {
                 {/* Badges Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {filteredAchievements.map((badge, idx) => (
-                    <div 
+                    <div
                       key={idx}
-                      className={`p-5 rounded-3xl border flex flex-col justify-between transition-all duration-300 ${
-                        badge.unlocked 
-                          ? `${badge.color} shadow-sm hover:shadow-md hover:-translate-y-0.5` 
+                      className={`p-5 rounded-3xl border flex flex-col justify-between transition-all duration-300 ${badge.unlocked
+                          ? `${badge.color} shadow-sm hover:shadow-md hover:-translate-y-0.5`
                           : 'border-slate-200 bg-slate-50/60 opacity-60 hover:opacity-80'
-                      }`}
+                        }`}
                     >
                       <div>
                         <div className="flex items-start justify-between mb-3">
@@ -1969,7 +2463,7 @@ export default function PatientView() {
                   {/* Search Input */}
                   <div>
                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Search Logs</label>
-                    <input 
+                    <input
                       type="text"
                       placeholder="Search exercise, date, game..."
                       value={statsSearch}
@@ -2091,7 +2585,7 @@ export default function PatientView() {
                           <td colSpan="7" className="py-8 text-center text-slate-400 space-y-2">
                             <p className="font-bold text-xs">No matching workout sessions found.</p>
                             {(statsSearch || statsFilterEx !== 'all' || statsFilterGame !== 'all') && (
-                              <button 
+                              <button
                                 onClick={() => {
                                   setStatsSearch('');
                                   setStatsFilterEx('all');
@@ -2117,7 +2611,7 @@ export default function PatientView() {
           {/* TAB 3: QUESTS & LEADERBOARDS */}
           {activeTab === 'quests' && (
             <div className="max-w-xl mx-auto w-full">
-              
+
               {/* Daily Quests Card */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -2126,13 +2620,12 @@ export default function PatientView() {
                 </div>
                 <div className="space-y-3">
                   {quests.map((quest, idx) => (
-                    <div 
+                    <div
                       key={idx}
-                      className={`p-4 rounded-xl border flex justify-between items-center transition-all ${
-                        quest.done 
-                          ? 'border-teal-200 bg-teal-50/40' 
+                      className={`p-4 rounded-xl border flex justify-between items-center transition-all ${quest.done
+                          ? 'border-teal-200 bg-teal-50/40'
                           : 'border-slate-200 bg-slate-50/40'
-                      }`}
+                        }`}
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -2157,6 +2650,19 @@ export default function PatientView() {
           )}
 
         </div>
+
+        {/* Video Tutorial & Form Demonstration Modal (Phase 1) */}
+        <ExerciseTutorialModal
+          isOpen={showTutorialModal}
+          exerciseName={tutorialExerciseName || currentExercise?.name}
+          isLiveSession={false}
+          onClose={() => setShowTutorialModal(false)}
+          onStartWorkout={() => {
+            setShowTutorialModal(false);
+            setMode('scanner');
+            setShowCalibrationModal(true);
+          }}
+        />
       </div>
     );
   }
@@ -2164,7 +2670,7 @@ export default function PatientView() {
   // --- VIEW 2: ACTIVE REHAB WORKOUT VIEW ---
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      
+
       {/* Edge-Processing Privacy Assurance Indicator */}
       <PrivacyEdgeIndicator />
 
@@ -2174,6 +2680,7 @@ export default function PatientView() {
         calibrationResult={calibrationResult}
         exerciseName={currentExercise?.name}
         requiredCameraView={currentExercise?.cameraView || 'front'}
+        onOpenTutorial={() => handleOpenTutorial(currentExercise?.name)}
         onProceedToWorkout={() => setShowCalibrationModal(false)}
         onProceedToBaseline={() => {
           setShowCalibrationModal(false);
@@ -2216,39 +2723,57 @@ export default function PatientView() {
       />
 
       {/* Back Button */}
-      <button 
+      <button
         onClick={() => setMode('dashboard')}
-        className="absolute top-6 left-6 text-slate-400 hover:text-white font-bold text-sm bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl transition-all z-30"
+        className="absolute top-6 left-6 text-slate-400 hover:text-white font-bold text-sm bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl transition-all z-30 flex items-center gap-1.5"
       >
         &larr; Exit to Dashboard
       </button>
 
-      {/* Audio toggle overlay */}
-      <button 
-        onClick={() => setIsMuted(!isMuted)}
-        className="absolute top-6 right-64 text-slate-400 hover:text-white font-bold text-xs bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl transition-all z-30"
-      >
-        {isMuted ? '🔇 Audio Off' : '🔊 Audio On'}
-      </button>
+      {/* Top Right Live Toolbars: Form Tutorial, Discomfort Report & Audio Toggle */}
+      <div className="absolute top-6 right-6 flex items-center gap-2.5 z-30">
+        <button
+          onClick={() => setShowDiscomfortModal(true)}
+          className="text-amber-300 hover:text-white font-bold text-xs bg-slate-900/90 border border-amber-500/40 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-md shadow-amber-900/20 cursor-pointer"
+          title="Report Discomfort or Pause Workout Early"
+        >
+          <span>⚠️ Stop Early / Discomfort</span>
+        </button>
+
+        <button
+          onClick={() => handleOpenTutorial(currentExercise?.name)}
+          className="text-teal-300 hover:text-white font-bold text-xs bg-slate-900/90 border border-teal-500/40 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-md shadow-teal-900/20 cursor-pointer"
+        >
+          <span>🎬 Form Tutorial</span>
+        </button>
+
+        <button
+          onClick={() => setIsMuted(!isMuted)}
+          className="text-slate-400 hover:text-white font-bold text-xs bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl transition-all cursor-pointer"
+        >
+          {isMuted ? '🔇 Audio Off' : '🔊 Audio On'}
+        </button>
+      </div>
 
       {/* Gaming Status Indicators Overlay */}
-      <div className="flex flex-wrap gap-4 mb-6 justify-center max-w-4xl w-full">
+      <div className="flex flex-wrap gap-4 mb-6 justify-center max-w-4xl w-full mt-10 sm:mt-0">
         <div className="bg-slate-900/80 backdrop-blur border border-slate-800 px-5 py-3 rounded-2xl text-center min-w-[120px]">
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Active Target</p>
           <p className="text-sm font-black text-teal-400 truncate">{currentExercise?.name}</p>
         </div>
         <div className="bg-slate-900/80 backdrop-blur border border-slate-800 px-5 py-3 rounded-2xl text-center min-w-[100px]">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Reps Completed</p>
-          <p className="text-lg font-black text-white">{reps} <span className="text-xs text-slate-500">/ {currentExercise?.targetReps}</span></p>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Daily Progress</p>
+          <p className="text-lg font-black text-white">
+            {reps} <span className="text-xs text-slate-500">/ {currentExercise?.targetDailyWork || currentExercise?.targetReps}</span>
+          </p>
         </div>
         <div className="bg-slate-900/80 backdrop-blur border border-slate-800 px-5 py-3 rounded-2xl text-center min-w-[90px]">
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Live Angle</p>
           <p className="text-lg font-black text-indigo-400">{armAngle}°</p>
         </div>
         {currentExercise?.holdTime > 0 && (
-          <div className={`bg-slate-900/80 backdrop-blur border px-5 py-3 rounded-2xl text-center min-w-[100px] transition-all ${
-            isHolding ? 'border-teal-500 bg-teal-950/20' : 'border-slate-800'
-          }`}>
+          <div className={`bg-slate-900/80 backdrop-blur border px-5 py-3 rounded-2xl text-center min-w-[100px] transition-all ${isHolding ? 'border-teal-500 bg-teal-950/20' : 'border-slate-800'
+            }`}>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Hold Timer</p>
             <p className="text-lg font-black text-yellow-400">{holdTimeLeft}s</p>
           </div>
@@ -2271,9 +2796,8 @@ export default function PatientView() {
         )}
 
         {/* Right/Main Screen: Game or Standard Tracker */}
-        <div className={`relative border-4 border-slate-800 rounded-3xl overflow-hidden shadow-2xl bg-slate-900 aspect-[4/3] ${
-          gameMode === 'standard' ? 'max-w-2xl mx-auto w-full' : 'flex-1'
-        }`}>
+        <div className={`relative border-4 border-slate-800 rounded-3xl overflow-hidden shadow-2xl bg-slate-900 aspect-[4/3] ${gameMode === 'standard' ? 'max-w-2xl mx-auto w-full' : 'flex-1'
+          }`}>
           <canvas ref={canvasRef} className="block w-full h-full object-cover" />
           <div className="absolute top-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-800 px-3 py-1 rounded-xl text-[10px] font-bold text-pink-400 uppercase tracking-widest shadow-sm">
             {gameMode === 'standard' ? 'Standard Visualizer' : 'Game World'}
@@ -2282,7 +2806,7 @@ export default function PatientView() {
       </div>
 
       {/* Action complete trigger */}
-      <button 
+      <button
         onClick={handleSaveSession}
         className="px-10 py-4 bg-teal-600 hover:bg-teal-500 rounded-2xl font-black text-lg transition-all shadow-lg shadow-teal-600/15"
       >
@@ -2305,6 +2829,23 @@ export default function PatientView() {
           </div>
         )}
       </div>
+
+      {/* Video Tutorial Modal in Scanner Live Mode */}
+      <ExerciseTutorialModal
+        isOpen={showTutorialModal}
+        exerciseName={tutorialExerciseName || currentExercise?.name}
+        isLiveSession={true}
+        onClose={() => setShowTutorialModal(false)}
+      />
+
+      {/* Discomfort / Early Stop Report Modal */}
+      <DiscomfortReportModal
+        isOpen={showDiscomfortModal}
+        exerciseName={currentExercise?.name}
+        assignmentId={currentExercise?.assignmentId}
+        onClose={() => setShowDiscomfortModal(false)}
+        onSubmit={handleSubmitDiscomfortReport}
+      />
     </div>
   );
 }

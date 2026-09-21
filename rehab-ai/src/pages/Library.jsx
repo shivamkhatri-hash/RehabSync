@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { API_URL } from '../config';
+import ExerciseTutorialModal from '../components/ExerciseTutorialModal';
 
 const FALLBACK_EXERCISES = [
   { name: 'Bicep Curl (Standing)', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
-  { name: 'Bicep Curl (Horizontal Arm)', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
   { name: 'Bicep Curl', target_joints: [11, 13, 15], success_angle: 85, failure_angle: 150 },
   { name: 'Push-up', target_joints: [11, 13, 15], success_angle: 105, failure_angle: 155 },
   { name: 'Crunch', target_joints: [11, 23, 25], success_angle: 80, failure_angle: 115 },
@@ -27,22 +27,16 @@ const FALLBACK_EXERCISES = [
 
 const EXERCISE_REFS = {
   'Bicep Curl (Standing)': {
-    joints: 'Elbow Joint (Shoulder pinned)',
-    desc: 'Classic standing elbow flexion training targeting the biceps brachii.',
-    guidance: 'Keep your upper arm anchored vertically against your ribs. Bend elbow upwards to 85 degrees.',
-    tip: 'Avoid swinging your upper arm forward or using momentum from the hips.'
-  },
-  'Bicep Curl (Horizontal Arm)': {
-    joints: 'Elbow Joint (Shoulder at 90°)',
-    desc: 'High-elevation horizontal bicep curl targeting biceps peak and shoulder stabilizers.',
-    guidance: 'Keep your upper arm horizontal at shoulder height (perpendicular to body). Bend elbow to 85 degrees.',
-    tip: 'Face the camera and avoid dropping your elbow below shoulder level.'
+    joints: 'Elbow Joint (Shoulder & Elbow in Horizontal Line)',
+    desc: 'High-elevation horizontal arm bicep curl targeting biceps peak and stabilizers.',
+    guidance: 'Raise your upper arm horizontally at shoulder height (perpendicular to body). Keep shoulder and elbow aligned horizontally, then bend elbow upwards to 85 degrees.',
+    tip: 'Keep your shoulder and elbow in a straight horizontal line perpendicular to your torso throughout the curl.'
   },
   'Bicep Curl': {
-    joints: 'Elbow Joint',
-    desc: 'Standard elbow flexion rehabilitation targeting biceps brachii.',
-    guidance: 'Keep your upper arm stable. Flex elbow towards peak flexion without compensations.',
-    tip: 'Maintain smooth velocity throughout concentric and eccentric phases.'
+    joints: 'Elbow Joint (Shoulder & Elbow in Horizontal Line)',
+    desc: 'Horizontal arm bicep curl rehabilitation targeting biceps peak and shoulder stabilizers.',
+    guidance: 'Raise upper arm horizontally at 90° to body. Flex elbow towards peak flexion without dropping the elbow.',
+    tip: 'Maintain shoulder-to-elbow in a straight horizontal line.'
   },
   'Push-up': {
     joints: 'Elbow & Shoulder',
@@ -171,6 +165,7 @@ export default function Library() {
   const [exercises, setExercises] = useState(FALLBACK_EXERCISES);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [selectedTutorialEx, setSelectedTutorialEx] = useState(null);
 
   useEffect(() => {
     const fetchExercises = async () => {
@@ -225,14 +220,14 @@ export default function Library() {
 
           {/* Muscle Group Category Filter Tabs */}
           <div className="flex flex-wrap gap-1.5">
-            {categories.map((cat, idx) => (
+            {categories.map((cat) => (
               <button
-                key={idx}
+                key={cat}
                 onClick={() => setActiveCategory(cat)}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  activeCategory === cat 
-                    ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/10' 
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-905 hover:bg-slate-200/70'
+                  activeCategory === cat
+                    ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/20'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
                 {cat}
@@ -242,7 +237,7 @@ export default function Library() {
         </div>
 
         {/* Exercises Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredExercises.map((ex, idx) => {
             const area = getTargetArea(ex.target_joints);
             const isHoldType = ex.name.toLowerCase().includes('balance') || ex.name.toLowerCase().includes('dog') || ex.name.toLowerCase().includes('hold');
@@ -296,13 +291,23 @@ export default function Library() {
                   )}
                 </div>
 
-                <div className="border-t border-slate-100 pt-3 mt-4 flex flex-wrap gap-2">
-                  <div className="text-[9px] font-bold text-teal-700 bg-teal-50/70 border border-teal-150 px-2.5 py-1 rounded-lg">
-                    Success Angle: <span className="font-black">{ex.success_angle}{unit}</span>
+                <div className="space-y-3 pt-3 mt-4 border-t border-slate-100">
+                  <div className="flex flex-wrap gap-2">
+                    <div className="text-[9px] font-bold text-teal-700 bg-teal-50/70 border border-teal-150 px-2.5 py-1 rounded-lg">
+                      Success Angle: <span className="font-black">{ex.success_angle}{unit}</span>
+                    </div>
+                    <div className="text-[9px] font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+                      Reset Angle: <span className="font-black">{ex.failure_angle}{unit}</span>
+                    </div>
                   </div>
-                  <div className="text-[9px] font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
-                    Reset Angle: <span className="font-black">{ex.failure_angle}{unit}</span>
-                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTutorialEx(ex.name)}
+                    className="w-full py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <span>🎬 Watch Video Tutorial & Guide</span>
+                  </button>
                 </div>
               </div>
             );
@@ -314,6 +319,13 @@ export default function Library() {
             </div>
           )}
         </div>
+
+        {/* Video Tutorial Modal (Phase 1) */}
+        <ExerciseTutorialModal
+          isOpen={!!selectedTutorialEx}
+          exerciseName={selectedTutorialEx}
+          onClose={() => setSelectedTutorialEx(null)}
+        />
 
       </div>
     </div>

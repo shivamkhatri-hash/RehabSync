@@ -33,6 +33,8 @@ export default function Auth() {
       navigate('/admin');
     } else if (userObj.role === 'doctor') {
       navigate('/doctor');
+    } else if (userObj.role === 'physiotherapist') {
+      navigate('/physio');
     } else {
       navigate('/patient');
     }
@@ -257,6 +259,39 @@ export default function Auth() {
               >
                 {loading ? 'Signing In...' : 'Sign In'}
               </button>
+
+              {/* Quick Demo Role Logins */}
+              <div className="pt-3 border-t border-slate-100">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 text-center mb-2">
+                  ⚡ Quick Demo Login Credentials
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setEmail('dctor1@test.com'); setPassword('doctor123'); clearAlerts(); }}
+                    className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+                  >
+                    <span>🩺 Doctor</span>
+                    <span className="text-[9px] text-blue-500 font-mono">dctor1@test</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEmail('physio@test.com'); setPassword('physio123'); clearAlerts(); }}
+                    className="p-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+                  >
+                    <span>🏃 Physio</span>
+                    <span className="text-[9px] text-purple-500 font-mono">physio@test</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEmail('admin@rehab.com'); setPassword('admin123'); clearAlerts(); }}
+                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+                  >
+                    <span>⚙️ Admin</span>
+                    <span className="text-[9px] text-slate-500 font-mono">admin@rehab</span>
+                  </button>
+                </div>
+              </div>
             </form>
           )}
 
@@ -413,10 +448,16 @@ export default function Auth() {
                   onChange={(e) => setRole(e.target.value)}
                   className="mt-1 block w-full px-3.5 py-2.5 border border-slate-300 rounded-xl shadow-sm text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="patient">Patient (Rehab Exercises & Tracking)</option>
-                  <option value="doctor">Doctor / Clinician (Prescriptions & Monitoring)</option>
+                  <option value="patient">Patient (Daily Routine & AI Bio-feedback)</option>
+                  <option value="physiotherapist">Physiotherapist (Exercise Planning & Allowances)</option>
+                  <option value="doctor">Doctor / Clinician (Medical Prescriptions & Restrictions)</option>
                   <option value="admin">Administrator (System Governance & RBAC)</option>
                 </select>
+                {(role === 'doctor' || role === 'physiotherapist') && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 leading-relaxed">
+                    🔒 <strong>Clinician Verification Required:</strong> New {role} registrations require approval by a system administrator before portal access is granted.
+                  </p>
+                )}
               </div>
 
               {role === 'patient' && (
