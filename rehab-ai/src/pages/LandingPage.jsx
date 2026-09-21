@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import PoseCareLogo from '../components/PoseCareLogo';
+import { useTheme } from '../hooks/useTheme';
 
 export default function LandingPage() {
+  const { isDark } = useTheme();
+
   return (
     <div className="min-h-screen bg-slate-50/50">
       {/* Hero Section */}
@@ -120,7 +123,7 @@ export default function LandingPage() {
       <footer className="bg-white border-t border-slate-200 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-2">
-            <PoseCareLogo size="md" variant="full" />
+            <PoseCareLogo size="md" variant="full" theme={isDark ? 'dark' : 'light'} />
           </div>
           <p className="text-xs text-slate-400 font-medium text-center md:text-right">
             © {new Date().getFullYear()} PoseCare Platform. All rights reserved.

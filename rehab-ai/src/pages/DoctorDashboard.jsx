@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL, CV_API_URL } from '../config';
 import PoseCareLogo from '../components/PoseCareLogo';
 import AnatomicalJointViewer from '../components/AnatomicalJointViewer';
+import { useTheme } from '../hooks/useTheme';
 
 // Biomechanical Clinical Protocols Directory
 const CLINICAL_PROTOCOLS = {
@@ -91,6 +92,7 @@ const CLINICAL_PROTOCOLS = {
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [user, setUser] = useState(null);
   
   // Real Data States
@@ -2179,7 +2181,7 @@ export default function DoctorDashboard() {
               {/* Report Document Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-2 border-slate-900 pb-6 gap-4">
                 <div className="space-y-1">
-                  <PoseCareLogo size="md" variant="horizontal" />
+                  <PoseCareLogo size="md" variant="horizontal" theme={isDark ? 'dark' : 'light'} />
                   <p className="text-xs font-bold text-slate-700 mt-2">{doctorClinicName}</p>
                   <p className="text-[11px] text-slate-400">Department of Orthopedic Biomechanics & Telerehabilitation</p>
                 </div>

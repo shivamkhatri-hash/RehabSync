@@ -1,10 +1,35 @@
 import { Link, useNavigate } from 'react-router-dom';
 import PoseCareLogo from './PoseCareLogo';
+import ThemeToggle from './ThemeToggle';
+import { useTheme } from '../hooks/useTheme';
+
+/* Public orientation pages — only meaningful before signing in. */
+const PUBLIC_NAV_LINKS = [
+  { to: '/', label: 'Home', className: 'text-gray-600 hover:text-teal-600 font-medium' },
+  { to: '/library', label: 'Exercise Library', className: 'text-gray-600 hover:text-teal-600 font-medium' },
+  { to: '/for-doctors', label: 'For Doctors', className: 'text-gray-600 hover:text-teal-600 font-medium' },
+  {
+    to: '/accuracy-bench',
+    label: '⚡ Accuracy Bench',
+    className: 'text-cyan-700 hover:text-cyan-600 font-bold bg-cyan-50 px-2.5 py-1 rounded-lg border border-cyan-200 text-xs',
+  },
+];
 
 export default function Navbar() {
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user'));
+  const { isDark } = useTheme();
+
+  /* Signed-in users work inside their role portal, so the public links are
+     hidden (display: none) and disabled (inert + aria-hidden, plus tabIndex
+     -1 per link) rather than left as clickable dead ends. */
+  const isAuthenticated = Boolean(token && user?.role);
+  const publicNavState = {
+    className: isAuthenticated ? 'hidden' : 'hidden md:flex space-x-8 items-center',
+    'aria-hidden': isAuthenticated || undefined,
+    inert: isAuthenticated || undefined,
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -18,21 +43,29 @@ export default function Navbar() {
         <div className="flex justify-between h-20 items-center">
           {/* Brand */}
           <div className="flex-shrink-0 flex items-center cursor-pointer py-1" onClick={() => navigate('/')}>
-            <PoseCareLogo size="md" variant="full" />
+            <PoseCareLogo size="md" variant="full" theme={isDark ? 'dark' : 'light'} />
           </div>
 
-          {/* Center Links */}
-          <div className="hidden md:flex space-x-8 items-center">
-            <Link to="/" className="text-gray-600 hover:text-teal-600 font-medium">Home</Link>
-            <Link to="/library" className="text-gray-600 hover:text-teal-600 font-medium">Exercise Library</Link>
-            <Link to="/for-doctors" className="text-gray-600 hover:text-teal-600 font-medium">For Doctors</Link>
-            <Link to="/accuracy-bench" className="text-cyan-700 hover:text-cyan-600 font-bold bg-cyan-50 px-2.5 py-1 rounded-lg border border-cyan-200 text-xs">⚡ Accuracy Bench</Link>
+          {/* Center Links — hidden + disabled once a session exists */}
+          <div {...publicNavState}>
+            {PUBLIC_NAV_LINKS.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={link.className}
+                tabIndex={isAuthenticated ? -1 : undefined}
+                aria-disabled={isAuthenticated || undefined}
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
 
           
 
           {/* Right Side Auth / Profile */}
           <div className="flex items-center space-x-4">
+            <ThemeToggle />
             {token && user ? (
               <>
                 <div className="flex items-center gap-2">

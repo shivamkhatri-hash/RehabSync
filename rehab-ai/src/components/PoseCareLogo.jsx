@@ -43,9 +43,11 @@ export default function PoseCareLogo({
   }
 
   // Full brand logo (with "POSECARE" typography & "YOUR MOVEMENT. OUR SUPPORT." tagline)
+  // The artwork uses dark-navy lettering, so on dark surfaces it sits on a light chip
+  // (.posecare-logo-chip keeps that chip light in both themes — see index.css).
   if (isDark) {
     return (
-      <div className={`inline-flex items-center bg-white/95 px-3 py-1.5 rounded-xl shadow-sm border border-slate-700/40 backdrop-blur-sm ${className}`}>
+      <div className={`posecare-logo-chip inline-flex items-center px-3 py-1.5 rounded-xl shadow-sm border border-slate-700/40 backdrop-blur-sm ${className}`}>
         <img 
           src="/posecare-logo-transparent-2x.png" 
           alt="PoseCare — Your Movement. Our Support." 

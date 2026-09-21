@@ -1,10 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import PoseCareLogo from '../components/PoseCareLogo';
+import { useTheme } from '../hooks/useTheme';
 
 export default function ForDoctors() {
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const { isDark } = useTheme();
 
   const handlePortalRedirect = () => {
     if (token && user) {
@@ -328,7 +330,7 @@ export default function ForDoctors() {
       <footer className="bg-white border-t border-slate-200 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-2">
-            <PoseCareLogo size="md" variant="full" />
+            <PoseCareLogo size="md" variant="full" theme={isDark ? 'dark' : 'light'} />
           </div>
           <p className="text-xs text-slate-400 font-medium text-center md:text-right">
             © {new Date().getFullYear()} PoseCare Physical Rehabilitation Platform. All rights reserved.
