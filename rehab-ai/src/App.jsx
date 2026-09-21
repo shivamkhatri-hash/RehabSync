@@ -5,6 +5,7 @@ import Auth from './pages/Auth';
 import PatientView from './pages/PatientView';
 import DoctorDashboard from './pages/DoctorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import PhysioDashboard from './pages/PhysioDashboard';
 import Library from './pages/Library';
 import ForDoctors from './pages/ForDoctors';
 import AccuracyBench from './pages/AccuracyBench';
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/patient" element={<PatientView />} />
         <Route path="/scanner" element={<PatientView />} />
         <Route path="/doctor" element={<DoctorDashboard />} />
+        <Route path="/physio" element={<PhysioDashboard />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/library" element={<Library />} />
         <Route path="/for-doctors" element={<ForDoctors />} />
