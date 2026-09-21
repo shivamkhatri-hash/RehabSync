@@ -161,14 +161,6 @@ EXERCISES: Dict[str, ExerciseConfig] = {
         camera_guidance="Face the camera or 45-degree angle with shoulder, elbow, and wrist visible.",
         aliases=("standing bicep curl", "standard bicep curl", "bicep curl standing"),
     ),
-    "bicep_curl_horizontal": _config(
-        "bicep_curl_horizontal", "Bicep Curl (Horizontal Arm)", "elbow_flexion",
-        (LEFT_ARM, RIGHT_ARM), 150, 85, min_rep_range=40,
-        good_feedback="Good horizontal elbow flexion. Upper arm is level at shoulder height.",
-        bad_feedback="Keep your upper arm horizontal (elbow at shoulder height).",
-        camera_guidance="Raise your upper arm horizontally to shoulder level and face the camera.",
-        aliases=("horizontal bicep curl", "bicep curl horizontal", "elevated bicep curl", "90 deg bicep curl"),
-    ),
     "bicep_curl": _config(
         "bicep_curl", "Bicep Curl", "elbow_flexion",
         (LEFT_ARM, RIGHT_ARM), 150, 85, min_rep_range=40,
