@@ -134,8 +134,8 @@ export const draw = (ctx, canvas, state, params) => {
   const ptB = mirroredPoints[j2];
   const ptC = mirroredPoints[j3];
 
-  const successAngle = currentExercise?.success_angle || 90;
-  const failureAngle = currentExercise?.failure_angle || 140;
+  const successAngle = currentExercise?.success_angle ?? currentExercise?.successAngle ?? 85;
+  const failureAngle = currentExercise?.failure_angle ?? currentExercise?.failureAngle ?? 150;
 
   // Render the posture matching phase details
   const targetAngle = state.phase === 'start' ? failureAngle : successAngle;

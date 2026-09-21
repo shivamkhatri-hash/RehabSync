@@ -13,7 +13,10 @@ export const init = () => ({
   targetY: 240,
   bladeAngle: 0,
   slashAnim: 0, // Slash arc animation trigger
-  notes: [], // Array of incoming rhythm notes { id, x, y, targetRom, type, color, sliced }
+  notes: [
+    { id: 1, x: 380, y: 280, targetRom: 0.40, type: 'CUBE', color: '#ff007f', speed: 4.8, sliced: false, rotation: 0 },
+    { id: 2, x: 560, y: 140, targetRom: 0.85, type: 'STAR', color: '#fbbf24', speed: 4.8, sliced: false, rotation: 0 }
+  ],
   particles: [], // Spark bursts
   slices: [], // Flying split halves
   rings: [], // Expanding shockwave rings
@@ -62,12 +65,13 @@ export const draw = (ctx, canvas, state, params) => {
   state.speedWarning = isTooFast;
 
   // 2. Normalization of Player Angle to Vertical Y Position (Side-Scrolling)
-  const successAng = currentExercise?.successAngle || 90;
-  const failAng = currentExercise?.failureAngle || 160;
-  const curAngle = liveAngleVal !== undefined ? liveAngleVal : (successAng + failAng) / 2;
+  const successAng = currentExercise?.success_angle ?? currentExercise?.successAngle ?? 85;
+  const failAng = currentExercise?.failure_angle ?? currentExercise?.failureAngle ?? 150;
+  const curAngle = (liveAngleVal !== undefined && !isNaN(liveAngleVal) && liveAngleVal > 0) ? liveAngleVal : (successAng + failAng) / 2;
   
   // Normalized 0.0 (rest / bottom) to 1.0 (target / top)
-  let normalizedRom = (curAngle - failAng) / (successAng - failAng);
+  const angleRange = successAng - failAng;
+  let normalizedRom = angleRange !== 0 ? (curAngle - failAng) / angleRange : 0.5;
   normalizedRom = Math.max(0, Math.min(1, normalizedRom));
 
   // Player vertical bounds: 65px (top sky) to canvas.height - 65px (bottom ground)

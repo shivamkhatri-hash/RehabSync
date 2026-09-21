@@ -183,38 +183,23 @@ export const validateExerciseForm = (exerciseName, landmarks, selectedArm = 'rig
   if (normName.includes('bicep')) {
     if (hip && shoulder && elbow) {
       const upperArmAngle = calculateAngle(hip, shoulder, elbow);
-      const isHorizontalType = normName.includes('horizontal') || normName.includes('90') || normName.includes('perpendicular') || normName.includes('shoulder joint') || normName.includes('elevated');
-
-      if (isHorizontalType) {
-        // Horizontal Bicep Curl: Upper arm must stay perpendicular to torso (70° - 110°)
-        if (upperArmAngle < 70) {
-          isCompensating = true;
-          violations.push({
-            joint: 'Upper Arm',
-            message: `Upper arm dropped (${Math.round(upperArmAngle)}°) - keep humerus at 90° shoulder height`,
-            severity: 'high',
-            angle: upperArmAngle
-          });
-        } else if (upperArmAngle > 115) {
-          isCompensating = true;
-          violations.push({
-            joint: 'Upper Arm',
-            message: `Upper arm elevated too high (${Math.round(upperArmAngle)}°) - maintain level 90° horizontal alignment`,
-            severity: 'medium',
-            angle: upperArmAngle
-          });
-        }
-      } else {
-        // Standard Standing Bicep Curl: Upper arm must remain anchored to ribs (<= 35°)
-        if (upperArmAngle > 35) {
-          isCompensating = true;
-          violations.push({
-            joint: 'Upper Arm',
-            message: `Elbow flared/drifted forward by ${Math.round(upperArmAngle)}° - pin humerus to your ribs`,
-            severity: 'medium',
-            angle: upperArmAngle
-          });
-        }
+      // Upper arm must stay in a line perpendicular to torso at shoulder height (65° - 118°)
+      if (upperArmAngle < 65) {
+        isCompensating = true;
+        violations.push({
+          joint: 'Upper Arm',
+          message: `Upper arm dropped (${Math.round(upperArmAngle)}°) - keep shoulder and elbow in a horizontal line perpendicular to body`,
+          severity: 'high',
+          angle: upperArmAngle
+        });
+      } else if (upperArmAngle > 118) {
+        isCompensating = true;
+        violations.push({
+          joint: 'Upper Arm',
+          message: `Upper arm elevated too high (${Math.round(upperArmAngle)}°) - maintain level 90° horizontal shoulder alignment`,
+          severity: 'medium',
+          angle: upperArmAngle
+        });
       }
     }
   } else if (normName.includes('shoulder abduction') || normName.includes('shoulder flexion')) {
