@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
 import PoseCareLogo from '../components/PoseCareLogo';
+import { useTheme } from '../hooks/useTheme';
 
 export default function Auth() {
   const [view, setView] = useState('login'); // 'login' | 'register' | 'forgot'
@@ -22,6 +23,7 @@ export default function Auth() {
   const [errorMessage, setErrorMessage] = useState(null);
   
   const navigate = useNavigate();
+  const { isDark } = useTheme();
 
   const clearAlerts = () => {
     setFeedbackMessage(null);
@@ -182,7 +184,7 @@ export default function Auth() {
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center mb-4 cursor-pointer" onClick={() => navigate('/')}>
-          <PoseCareLogo size="lg" variant="full" />
+          <PoseCareLogo size="lg" variant="full" theme={isDark ? 'dark' : 'light'} />
         </div>
         <h2 className="mt-2 text-center text-2xl font-black text-slate-900 tracking-tight">
           {view === 'login' && 'Sign in to your account'}

@@ -89,7 +89,8 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-kinetic-fade,
   .animate-pulse-subtle,
-  .animate-ripple-ring {
+  .animate-ripple-ring,
+  .theme-switch__thumb {
     animation: none !important;
     transition: none !important;
   }
@@ -110,3 +111,424 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* ============================================================================
+   PoseCare Theme System
+   ----------------------------------------------------------------------------
+   Light mode is the original palette (slate neutrals + teal accents) and is
+   left completely untouched.
+
+   Dark mode is switched on by the `dark` class on <html> (see
+   src/hooks/ThemeProvider.jsx). Instead of sprinkling a `dark:` variant on ~1500
+   utility usages across 30 screens, the shared utility classes the app already
+   uses are remapped here to the palette below. Dashboard chrome that was
+   *already* dark in light mode (bg-slate-700..950, video/canvas overlays) is
+   intentionally left alone, so those surfaces survive the switch unchanged.
+
+   Every rule is scoped to `.dark` and outranks its Tailwind counterpart
+   (higher specificity: .dark + class), so light mode is bit-for-bit identical.
+   ========================================================================== */
+
+.dark {
+  /* Surfaces */
+  --pc-canvas: #0a1120;          /* page background */
+  --pc-surface: #121c2f;         /* cards, navbar, modals */
+  --pc-surface-raised: #18243a;  /* chips, inputs, nested panels */
+  --pc-surface-sunken: #0d1626;  /* wells & eyelet backgrounds */
+  --pc-invert-bg: #e8eef7;       /* primary buttons flip to light-on-dark */
+  --pc-invert-bg-hover: #dbe4f1;
+  --pc-invert-text: #0c1424;
+
+  /* Lines */
+  --pc-line-soft: #1a2438;
+  --pc-line: #26334c;
+  --pc-line-strong: #33425f;
+
+  /* Text ramp — mirrors slate-900 → slate-400 of the light theme */
+  --pc-text-1: #f1f5fb;          /* headings */
+  --pc-text-2: #e4ebf6;          /* strong body */
+  --pc-text-3: #d0dae8;          /* body */
+  --pc-text-4: #b5c2d5;          /* secondary */
+  --pc-text-5: #98a6bb;          /* muted */
+  --pc-text-6: #8593a8;          /* faint / captions */
+
+  color-scheme: dark;            /* native selects, scrollbars, autofill */
+}
+
+/* --- Base canvas ---------------------------------------------------------- */
+html.dark {
+  background-color: var(--pc-canvas);
+}
+
+.dark body {
+  background-color: var(--pc-canvas);
+  color: var(--pc-text-2);
+}
+
+/* --- Neutral surfaces ---------------------------------------------------- */
+.dark .bg-white { background-color: var(--pc-surface); }
+.dark .bg-white\/95 { background-color: rgb(18 28 47 / 0.95); }
+.dark .bg-white\/90 { background-color: rgb(18 28 47 / 0.9); }
+.dark .bg-white\/80 { background-color: rgb(18 28 47 / 0.8); }
+.dark .bg-white\/70 { background-color: rgb(18 28 47 / 0.7); }
+
+.dark .bg-slate-50 { background-color: var(--pc-surface-sunken); }
+.dark .bg-slate-50\/80 { background-color: rgb(13 22 38 / 0.86); }
+.dark .bg-slate-50\/70 { background-color: rgb(13 22 38 / 0.72); }
+.dark .bg-slate-50\/60 { background-color: rgb(13 22 38 / 0.6); }
+.dark .bg-slate-50\/50 { background-color: rgb(13 22 38 / 0.5); }
+.dark .bg-slate-50\/40 { background-color: rgb(13 22 38 / 0.4); }
+.dark .bg-slate-50\/30 { background-color: rgb(13 22 38 / 0.3); }
+.dark .bg-slate-50\/20 { background-color: rgb(13 22 38 / 0.2); }
+
+.dark .bg-slate-100 { background-color: var(--pc-surface-raised); }
+.dark .bg-slate-200 { background-color: #1f2d47; }
+.dark .bg-slate-200\/60 { background-color: rgb(31 45 71 / 0.6); }
+.dark .bg-slate-300 { background-color: #2c3a55; }
+.dark .bg-slate-400 { background-color: #3b4b67; }
+.dark .bg-slate-500 { background-color: #4a5c7d; }
+
+.dark .hover\:bg-white:hover { background-color: var(--pc-surface-raised); }
+.dark .hover\:bg-slate-50:hover { background-color: #16223a; }
+.dark .hover\:bg-slate-50\/80:hover { background-color: rgb(22 34 58 / 0.8); }
+.dark .hover\:bg-slate-50\/50:hover { background-color: rgb(22 34 58 / 0.5); }
+.dark .hover\:bg-slate-100:hover { background-color: #1d2b45; }
+.dark .hover\:bg-slate-200:hover { background-color: #26365a; }
+.dark .hover\:bg-slate-200\/60:hover { background-color: rgb(38 54 90 / 0.6); }
+.dark .hover\:bg-slate-300:hover { background-color: #2c3a55; }
+
+/* --- Text ramp ----------------------------------------------------------- */
+.dark .text-slate-900 { color: var(--pc-text-1); }
+.dark .text-slate-800 { color: var(--pc-text-2); }
+.dark .text-slate-700 { color: var(--pc-text-3); }
+.dark .text-slate-600 { color: var(--pc-text-4); }
+.dark .text-slate-500 { color: var(--pc-text-5); }
+.dark .text-slate-400 { color: var(--pc-text-6); }
+.dark .text-gray-800 { color: var(--pc-text-2); }
+.dark .text-gray-600 { color: var(--pc-text-4); }
+.dark .text-gray-500 { color: var(--pc-text-5); }
+
+.dark .hover\:text-slate-900:hover { color: var(--pc-text-1); }
+.dark .hover\:text-slate-800:hover { color: var(--pc-text-2); }
+.dark .hover\:text-slate-600:hover { color: var(--pc-text-4); }
+
+/* text-slate-100/200/300 are already light and are used on dark chrome in both
+   themes, so they are intentionally not remapped. */
+
+/* --- Borders & dividers -------------------------------------------------- */
+.dark .border-slate-100 { border-color: var(--pc-line-soft); }
+.dark .border-slate-100\/80 { border-color: rgb(148 163 184 / 0.12); }
+.dark .border-slate-200 { border-color: var(--pc-line); }
+.dark .border-slate-200\/90 { border-color: rgb(148 163 184 / 0.21); }
+.dark .border-slate-200\/80 { border-color: rgb(148 163 184 / 0.2); }
+.dark .border-slate-200\/70 { border-color: rgb(148 163 184 / 0.18); }
+.dark .border-slate-200\/60 { border-color: rgb(148 163 184 / 0.16); }
+.dark .border-slate-200\/50 { border-color: rgb(148 163 184 / 0.14); }
+.dark .border-slate-300 { border-color: var(--pc-line-strong); }
+.dark .border-gray-200 { border-color: var(--pc-line); }
+/* Light hairlines (brand rules, report header) become light-on-dark rules */
+.dark .border-slate-900 { border-color: #b9c6d8; }
+.dark .border-white { border-color: rgb(255 255 255 / 0.16); }
+
+.dark .hover\:border-slate-200:hover { border-color: rgb(148 163 184 / 0.24); }
+.dark .hover\:border-slate-300:hover { border-color: rgb(148 163 184 / 0.34); }
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--pc-line-soft);
+}
+
+/* --- Form controls ------------------------------------------------------- */
+.dark .placeholder-slate-400::placeholder { color: #6c7a91; }
+.dark .placeholder-slate-300::placeholder { color: #5f6d84; }
+.dark .placeholder-slate-500::placeholder { color: #7f8ea6; }
+
+/* Inputs that relied on the UA white background (border-only fields) */
+.dark input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.dark select,
+.dark textarea {
+  background-color: var(--pc-surface);
+  color: var(--pc-text-1);
+  border-color: var(--pc-line-strong);
+}
+
+/* --- Coloured shadows ---------------------------------------------------- */
+.dark .shadow-slate-200 { --tw-shadow-color: rgb(0 0 0 / 0.6); }
+
+/* --- Inverted (slate-900 + white text) buttons & tooltips ----------------
+   In dark mode these flip to a light pill so primary actions stay visible on
+   dark cards, exactly like the light theme inverts them the other way. */
+.dark .bg-slate-900.text-white {
+  background-color: var(--pc-invert-bg);
+  color: var(--pc-invert-text);
+}
+.dark .bg-slate-900.text-white.hover\:bg-slate-800:hover {
+  background-color: var(--pc-invert-bg-hover);
+}
+
+/* --- Brand logo chip -----------------------------------------------------
+   The PoseCare artwork is dark navy, so it always needs a light plate behind
+   it — this stays light in dark mode (see src/components/PoseCareLogo.jsx). */
+.posecare-logo-chip {
+  background-color: rgb(255 255 255 / 0.95);
+}
+
+/* --- Scrollbar ----------------------------------------------------------- */
+.dark ::-webkit-scrollbar-thumb { background: #33425f; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #43536f; }
+
+/* --- Theme switch (src/components/ThemeToggle.jsx) ----------------------- */
+.theme-switch {
+  background-color: #e6ebf2;
+  border-color: #cbd5e1;
+}
+.dark .theme-switch {
+  background-color: #0f1a2d;
+  border-color: #2b3b58;
+}
+.theme-switch__thumb {
+  background-color: #ffffff;
+  border-color: #d8e0ea;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.2);
+}
+.dark .theme-switch__thumb {
+  background-color: #1d2a44;
+  border-color: #33425f;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+.theme-switch:focus-visible {
+  outline: 2px solid #14b8a6;
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+   Dark-mode accent tints
+   ----------------------------------------------------------------------------
+   The light theme leans on -50/-100 tinted chips with -200/-300 borders.
+   Those tints would glare on a dark canvas, so they become translucent washes
+   of the same hue (same visual weight as in the light theme) while the
+   -600..-900 text colours step up to the -300/-400 shades for contrast.
+   ========================================================================== */
+
+/* Teal — primary accent */
+.dark .bg-teal-50,
+.dark .bg-teal-50\/30,
+.dark .bg-teal-50\/40,
+.dark .bg-teal-50\/50,
+.dark .bg-teal-50\/60,
+.dark .bg-teal-50\/70,
+.dark .bg-teal-50\/80,
+.dark .hover\:bg-teal-50:hover {
+  background-color: rgb(45 212 191 / 0.1);
+}
+.dark .bg-teal-100,
+.dark .bg-teal-100\/80,
+.dark .hover\:bg-teal-100:hover {
+  background-color: rgb(45 212 191 / 0.16);
+}
+.dark .border-teal-100,
+.dark .border-teal-200,
+.dark .border-teal-200\/50,
+.dark .border-teal-200\/60,
+.dark .border-teal-200\/80,
+.dark .hover\:border-teal-200:hover {
+  border-color: rgb(45 212 191 / 0.28);
+}
+.dark .border-teal-300,
+.dark .hover\:border-teal-300:hover {
+  border-color: rgb(45 212 191 / 0.4);
+}
+.dark .text-teal-600,
+.dark .hover\:text-teal-600:hover { color: #2dd4bf; }
+.dark .text-teal-700,
+.dark .text-teal-800,
+.dark .hover\:text-teal-700:hover,
+.dark .hover\:text-teal-800:hover { color: #5eead4; }
+.dark .text-teal-900 { color: #99f6e4; }
+
+/* Amber — warnings */
+.dark .bg-amber-50,
+.dark .bg-amber-50\/50,
+.dark .bg-amber-50\/60,
+.dark .bg-amber-50\/80,
+.dark .bg-amber-50\/90 { background-color: rgb(245 158 11 / 0.11); }
+.dark .bg-amber-100,
+.dark .bg-amber-200,
+.dark .hover\:bg-amber-100:hover,
+.dark .hover\:bg-amber-100\/70:hover { background-color: rgb(245 158 11 / 0.18); }
+.dark .border-amber-100,
+.dark .border-amber-200,
+.dark .border-amber-200\/80,
+.dark .hover\:border-amber-200:hover { border-color: rgb(245 158 11 / 0.3); }
+.dark .border-amber-300 { border-color: rgb(251 191 36 / 0.4); }
+.dark .text-amber-600 { color: #fbbf24; }
+.dark .text-amber-700,
+.dark .text-amber-800,
+.dark .text-amber-900,
+.dark .text-amber-950 { color: #fcd34d; }
+
+/* Emerald — success / physio role */
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/40,
+.dark .bg-emerald-50\/60,
+.dark .bg-emerald-50\/70,
+.dark .bg-emerald-50\/80,
+.dark .bg-emerald-50\/90 { background-color: rgb(16 185 129 / 0.11); }
+.dark .bg-emerald-100,
+.dark .bg-emerald-100\/70,
+.dark .bg-emerald-200,
+.dark .hover\:bg-emerald-100:hover,
+.dark .hover\:bg-emerald-100\/70:hover { background-color: rgb(16 185 129 / 0.18); }
+.dark .border-emerald-200,
+.dark .border-emerald-200\/80 { border-color: rgb(16 185 129 / 0.3); }
+.dark .border-emerald-300 { border-color: rgb(52 211 153 / 0.4); }
+.dark .text-emerald-600 { color: #34d399; }
+.dark .text-emerald-700,
+.dark .text-emerald-800,
+.dark .text-emerald-900,
+.dark .text-emerald-950 { color: #6ee7b7; }
+
+/* Indigo — highlights & links */
+.dark .bg-indigo-50,
+.dark .bg-indigo-50\/60 { background-color: rgb(99 102 241 / 0.12); }
+.dark .bg-indigo-100,
+.dark .hover\:bg-indigo-100:hover,
+.dark .hover\:bg-indigo-100\/70:hover { background-color: rgb(99 102 241 / 0.2); }
+.dark .border-indigo-100,
+.dark .border-indigo-200,
+.dark .hover\:border-indigo-200:hover { border-color: rgb(129 140 248 / 0.32); }
+.dark .text-indigo-500,
+.dark .text-indigo-600 { color: #818cf8; }
+.dark .text-indigo-700,
+.dark .text-indigo-800,
+.dark .hover\:text-indigo-700:hover,
+.dark .hover\:text-indigo-800:hover { color: #a5b4fc; }
+
+/* Purple — admin role */
+.dark .bg-purple-50 { background-color: rgb(168 85 247 / 0.12); }
+.dark .bg-purple-100,
+.dark .hover\:bg-purple-100:hover { background-color: rgb(168 85 247 / 0.2); }
+.dark .border-purple-100,
+.dark .border-purple-200,
+.dark .hover\:border-purple-200:hover { border-color: rgb(192 132 252 / 0.32); }
+.dark .hover\:border-purple-300:hover { border-color: rgb(192 132 252 / 0.42); }
+.dark .text-purple-500,
+.dark .text-purple-600 { color: #c084fc; }
+.dark .text-purple-700,
+.dark .text-purple-800 { color: #d8b4fe; }
+
+/* Blue — doctor role */
+.dark .bg-blue-50 { background-color: rgb(59 130 246 / 0.12); }
+.dark .bg-blue-100,
+.dark .hover\:bg-blue-100:hover { background-color: rgb(59 130 246 / 0.2); }
+.dark .border-blue-200 { border-color: rgb(96 165 250 / 0.32); }
+.dark .text-blue-500,
+.dark .text-blue-600 { color: #60a5fa; }
+.dark .text-blue-700 { color: #93c5fd; }
+
+/* Cyan — instrument / accuracy-bench accents */
+.dark .bg-cyan-50 { background-color: rgb(34 211 238 / 0.11); }
+.dark .border-cyan-100,
+.dark .border-cyan-200,
+.dark .hover\:border-cyan-200:hover { border-color: rgb(34 211 238 / 0.3); }
+.dark .text-cyan-600,
+.dark .text-cyan-700,
+.dark .hover\:text-cyan-600:hover { color: #67e8f9; }
+
+/* Sky / orange / pink — decorative & secondary chips */
+.dark .bg-sky-50,
+.dark .bg-sky-100,
+.dark .bg-sky-100\/40 { background-color: rgb(56 189 248 / 0.12); }
+.dark .border-sky-200 { border-color: rgb(56 189 248 / 0.3); }
+.dark .text-sky-700 { color: #7dd3fc; }
+
+.dark .bg-orange-50 { background-color: rgb(249 115 22 / 0.12); }
+.dark .border-orange-200 { border-color: rgb(251 146 60 / 0.3); }
+.dark .text-orange-700 { color: #fdba74; }
+
+.dark .bg-pink-50 { background-color: rgb(236 72 153 / 0.12); }
+.dark .border-pink-100,
+.dark .border-pink-200,
+.dark .hover\:border-pink-200:hover { border-color: rgb(244 114 182 / 0.3); }
+.dark .text-pink-600,
+.dark .text-pink-700 { color: #f9a8d4; }
+
+/* Rose / red — pain, errors, destructive actions */
+.dark .bg-rose-50,
+.dark .bg-rose-50\/50,
+.dark .bg-rose-50\/60,
+.dark .bg-rose-50\/70 { background-color: rgb(244 63 94 / 0.11); }
+.dark .hover\:bg-rose-100:hover,
+.dark .hover\:bg-rose-100\/70:hover { background-color: rgb(244 63 94 / 0.18); }
+.dark .border-rose-200 { border-color: rgb(251 113 133 / 0.3); }
+.dark .text-rose-500,
+.dark .text-rose-600 { color: #fb7185; }
+.dark .text-rose-700,
+.dark .text-rose-800,
+.dark .text-rose-900 { color: #fda4af; }
+
+.dark .bg-red-50 { background-color: rgb(239 68 68 / 0.12); }
+.dark .hover\:bg-red-100:hover { background-color: rgb(239 68 68 / 0.18); }
+.dark .border-red-200 { border-color: rgb(248 113 113 / 0.32); }
+.dark .text-red-600,
+.dark .text-red-700,
+.dark .hover\:text-red-700:hover { color: #fca5a5; }
+
+/* ============================================================================
+   Dark-mode gradient stops
+   ----------------------------------------------------------------------------
+   Only the light starting/ending points need new values: the model backdrops in
+   the anatomy viewers and the brand headlines that clip text to a teal ramp.
+   Gradients that were already dark are left untouched.
+   ========================================================================== */
+.dark .from-slate-50 {
+  --tw-gradient-from: var(--pc-surface-sunken) var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(13 22 38 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.dark .from-sky-50\/60 {
+  --tw-gradient-from: rgb(56 189 248 / 0.14) var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(56 189 248 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.dark .via-white {
+  --tw-gradient-to: rgb(18 28 47 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--pc-surface) var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+.dark .to-slate-50 {
+  --tw-gradient-to: var(--pc-surface-sunken) var(--tw-gradient-to-position);
+}
+.dark .to-amber-50\/30 {
+  --tw-gradient-to: rgb(245 158 11 / 0.07) var(--tw-gradient-to-position);
+}
+
+/* Brand headline text gradients — kept in the teal/emerald family */
+.dark .from-teal-600 {
+  --tw-gradient-from: #14b8a6 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(20 184 166 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.dark .via-teal-500 {
+  --tw-gradient-to: rgb(45 212 191 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), #2dd4bf var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+.dark .to-teal-500 {
+  --tw-gradient-to: #2dd4bf var(--tw-gradient-to-position);
+}
+.dark .to-emerald-500 {
+  --tw-gradient-to: #34d399 var(--tw-gradient-to-position);
+}
+
+/* Patient hero banner tint (teal / slate / indigo wash over a card) */
+.dark .from-teal-900\/10 {
+  --tw-gradient-from: rgb(45 212 191 / 0.12) var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(45 212 191 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.dark .via-slate-900\/5 {
+  --tw-gradient-to: rgb(148 163 184 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), rgb(148 163 184 / 0.05) var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+.dark .to-indigo-900\/10 {
+  --tw-gradient-to: rgb(99 102 241 / 0.12) var(--tw-gradient-to-position);
+}
+
