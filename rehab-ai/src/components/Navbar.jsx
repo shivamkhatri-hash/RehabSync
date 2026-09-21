@@ -42,6 +42,8 @@ export default function Navbar() {
                       ? 'bg-purple-100 text-purple-700 border-purple-200' 
                       : user.role === 'doctor'
                       ? 'bg-teal-100 text-teal-700 border-teal-200'
+                      : user.role === 'physiotherapist'
+                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                       : 'bg-blue-100 text-blue-700 border-blue-200'
                   }`}>
                     {user.role}
@@ -51,11 +53,12 @@ export default function Navbar() {
                   onClick={() => {
                     if (user.role === 'admin') navigate('/admin');
                     else if (user.role === 'doctor') navigate('/doctor');
+                    else if (user.role === 'physiotherapist') navigate('/physio');
                     else navigate('/patient');
                   }}
                   className="bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm"
                 >
-                  {user.role === 'admin' ? '⚡ Admin Portal' : user.role === 'doctor' ? '🩺 Clinical Portal' : '🏃 Patient Portal'}
+                  {user.role === 'admin' ? '⚡ Admin Portal' : user.role === 'doctor' ? '🩺 Doctor Portal' : user.role === 'physiotherapist' ? '🏋️‍♂️ Physio Portal' : '🏃 Patient Portal'}
                 </button>
                 <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-red-500 font-medium">Logout</button>
               </>

@@ -5,6 +5,7 @@ export default function PreExerciseCalibrationModal({
   calibrationResult,
   exerciseName = 'Exercise',
   requiredCameraView = 'front',
+  onOpenTutorial,
   onProceedToWorkout,
   onProceedToBaseline,
   onCancel
@@ -130,38 +131,37 @@ export default function PreExerciseCalibrationModal({
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <button
-            onClick={onProceedToBaseline}
-            disabled={!isAllPassed}
-            className={`flex-1 py-3 px-4 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 ${
-              isAllPassed
-                ? 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white shadow-lg shadow-teal-500/20 ring-2 ring-cyan-400/40 animate-pulse'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            }`}
-          >
-            <span>✨ 3-Rep Baseline Calibration</span>
-          </button>
+          {onOpenTutorial && (
+            <button
+              onClick={onOpenTutorial}
+              className="py-3 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/30 cursor-pointer"
+            >
+              <span>🎬 Watch Video Tutorial</span>
+            </button>
+          )}
 
           <button
             onClick={onProceedToWorkout}
-            disabled={!isAllPassed}
-            className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs transition-all ${
-              isAllPassed
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                : 'bg-slate-800/40 text-slate-600 cursor-not-allowed border border-slate-800'
-            }`}
+            className="flex-1 py-3.5 px-4 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white shadow-lg shadow-teal-500/25 ring-2 ring-cyan-400/30 cursor-pointer"
           >
-            <span>Skip Warmup & Start</span>
+            <span>🚀 Skip Warmup & Start Workout</span>
+          </button>
+
+          <button
+            onClick={onProceedToBaseline}
+            className="flex-1 py-3.5 px-4 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+          >
+            <span>✨ 3-Rep Baseline</span>
           </button>
         </div>
 
-        {/* Developer Bypass Toggle */}
-        <div className="text-center pt-1 border-t border-slate-800/60">
+        {/* Quick Start & Guide Shortcuts */}
+        <div className="text-center pt-1 border-t border-slate-800/60 flex items-center justify-center gap-4">
           <button
             onClick={onProceedToWorkout}
-            className="text-[10px] text-slate-500 hover:text-slate-400 underline font-medium"
+            className="text-xs text-cyan-400 hover:text-cyan-300 underline font-semibold cursor-pointer"
           >
-            Developer Bypass Calibration (Demo Mode)
+            ⚡ Quick Start (Demo Mode)
           </button>
         </div>
 
